@@ -16,10 +16,15 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.AlarmClock;
 import android.provider.ContactsContract;
+import android.provider.MediaStore;
 import android.provider.Settings;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.JSArray;
@@ -28,6 +33,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.json.JSONArray;
@@ -38,6 +44,9 @@ public class JarvisDevicePlugin extends Plugin {
 
     private static final String CHANNEL_ID = "jarvis_alerts";
     private static final String CHANNEL_NAME = "JARVIS AI Alerts";
+
+    private SpeechRecognizer speechRecognizer = null;
+    private boolean isListeningSpeech = false;
 
     @Override
     public void load() {
@@ -86,6 +95,39 @@ public class JarvisDevicePlugin extends Plugin {
                 ret.put("message", "Launched " + targetApp + " (" + packageName + ")");
                 call.resolve(ret);
             } else {
+                // Direct fallback for system actions: Settings, Camera, Gallery
+                Intent fallbackIntent = null;
+                String pkgLower = packageName.toLowerCase();
+                String targetLower = targetApp.toLowerCase();
+
+                if (pkgLower.contains("setting") || targetLower.contains("setting")) {
+                    fallbackIntent = new Intent(Settings.ACTION_SETTINGS);
+                } else if (pkgLower.contains("camera") || targetLower.contains("camera")) {
+                    fallbackIntent = new Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA);
+                    if (fallbackIntent.resolveActivity(pm) == null) {
+                        fallbackIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    }
+                } else if (pkgLower.contains("gallery") || pkgLower.contains("photo") || targetLower.contains("gallery") || targetLower.contains("photo")) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
+                        fallbackIntent = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_GALLERY);
+                    }
+                    if (fallbackIntent == null || fallbackIntent.resolveActivity(pm) == null) {
+                        fallbackIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("content://media/internal/images/media"));
+                    }
+                }
+
+                if (fallbackIntent != null) {
+                    fallbackIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (fallbackIntent.resolveActivity(pm) != null) {
+                        context.startActivity(fallbackIntent);
+                        JSObject ret = new JSObject();
+                        ret.put("success", true);
+                        ret.put("message", "Launched " + targetApp + " via system action");
+                        call.resolve(ret);
+                        return;
+                    }
+                }
+
                 // Fallback to Google Play Store intent if app not installed
                 Intent storeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + packageName.trim()));
                 storeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -800,5 +842,210 @@ public class JarvisDevicePlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Failed to search contacts: " + e.getMessage());
         }
+    }
+
+    // ==========================================
+    // Native Android SpeechRecognizer Bridge
+    // ==========================================
+
+    @PluginMethod
+    public void isSpeechRecognitionAvailable(PluginCall call) {
+        boolean available = SpeechRecognizer.isRecognitionAvailable(getContext());
+        JSObject ret = new JSObject();
+        ret.put("available", available);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void startSpeechRecognition(PluginCall call) {
+        String language = call.getString("language", "en-IN");
+
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (speechRecognizer != null) {
+                        try {
+                            speechRecognizer.cancel();
+                            speechRecognizer.destroy();
+                        } catch (Exception ignored) {}
+                        speechRecognizer = null;
+                    }
+
+                    if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
+                        call.reject("Speech recognition is not available on this device.");
+                        return;
+                    }
+
+                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
+                    Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                    intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                    intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+                    intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
+                    if (language != null && !language.isEmpty() && !language.equals("auto")) {
+                        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
+                        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, language);
+                    }
+
+                    speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                        @Override
+                        public void onReadyForSpeech(Bundle params) {
+                            isListeningSpeech = true;
+                            JSObject ret = new JSObject();
+                            ret.put("status", "ready");
+                            notifyListeners("speechReady", ret);
+                        }
+
+                        @Override
+                        public void onBeginningOfSpeech() {
+                            JSObject ret = new JSObject();
+                            ret.put("status", "speaking");
+                            notifyListeners("speechStart", ret);
+                        }
+
+                        @Override
+                        public void onRmsChanged(float rmsdB) {
+                            JSObject ret = new JSObject();
+                            float normalized = Math.max(0.0f, Math.min(1.0f, (rmsdB + 2.0f) / 12.0f));
+                            ret.put("rms", normalized);
+                            notifyListeners("speechRms", ret);
+                        }
+
+                        @Override
+                        public void onBufferReceived(byte[] buffer) {}
+
+                        @Override
+                        public void onEndOfSpeech() {
+                            isListeningSpeech = false;
+                            JSObject ret = new JSObject();
+                            ret.put("status", "end_of_speech");
+                            notifyListeners("speechEndOfSpeech", ret);
+                        }
+
+                        @Override
+                        public void onError(int error) {
+                            isListeningSpeech = false;
+                            String errorMsg = getSpeechErrorMessage(error);
+                            JSObject ret = new JSObject();
+                            ret.put("errorCode", error);
+                            ret.put("error", errorMsg);
+                            notifyListeners("speechError", ret);
+                        }
+
+                        @Override
+                        public void onResults(Bundle results) {
+                            isListeningSpeech = false;
+                            ArrayList<String> matches = results != null
+                                ? results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                : null;
+                            String text = (matches != null && !matches.isEmpty()) ? matches.get(0) : "";
+                            JSObject ret = new JSObject();
+                            ret.put("transcript", text != null ? text.trim() : "");
+                            ret.put("isFinal", true);
+                            notifyListeners("speechResult", ret);
+                        }
+
+                        @Override
+                        public void onPartialResults(Bundle partialResults) {
+                            ArrayList<String> matches = partialResults != null
+                                ? partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                : null;
+                            String text = (matches != null && !matches.isEmpty()) ? matches.get(0) : "";
+                            if (text != null && !text.trim().isEmpty()) {
+                                JSObject ret = new JSObject();
+                                ret.put("transcript", text.trim());
+                                ret.put("isFinal", false);
+                                notifyListeners("speechPartial", ret);
+                            }
+                        }
+
+                        @Override
+                        public void onEvent(int eventType, Bundle params) {}
+                    });
+
+                    speechRecognizer.startListening(intent);
+                    isListeningSpeech = true;
+
+                    JSObject ret = new JSObject();
+                    ret.put("success", true);
+                    call.resolve(ret);
+                } catch (Exception e) {
+                    call.reject("Failed to initialize speech recognizer: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    @PluginMethod
+    public void stopSpeechRecognition(PluginCall call) {
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (speechRecognizer != null) {
+                    try {
+                        speechRecognizer.stopListening();
+                    } catch (Exception ignored) {}
+                }
+                isListeningSpeech = false;
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            }
+        });
+    }
+
+    @PluginMethod
+    public void cancelSpeechRecognition(PluginCall call) {
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (speechRecognizer != null) {
+                    try {
+                        speechRecognizer.cancel();
+                        speechRecognizer.destroy();
+                    } catch (Exception ignored) {}
+                    speechRecognizer = null;
+                }
+                isListeningSpeech = false;
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            }
+        });
+    }
+
+    private String getSpeechErrorMessage(int errorCode) {
+        switch (errorCode) {
+            case SpeechRecognizer.ERROR_AUDIO:
+                return "Audio recording error. Please check your microphone.";
+            case SpeechRecognizer.ERROR_CLIENT:
+                return "Client side speech recognition error.";
+            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                return "Microphone permission is required for voice recognition.";
+            case SpeechRecognizer.ERROR_NETWORK:
+            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                return "Network timeout during speech recognition.";
+            case SpeechRecognizer.ERROR_NO_MATCH:
+                return "No speech detected. Please speak clearly.";
+            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                return "Speech recognition service is busy. Please try again.";
+            case SpeechRecognizer.ERROR_SERVER:
+                return "Server recognition error.";
+            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                return "No speech input detected.";
+            default:
+                return "Speech recognition error (code " + errorCode + ").";
+        }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (speechRecognizer != null) {
+            try {
+                speechRecognizer.destroy();
+            } catch (Exception ignored) {}
+            speechRecognizer = null;
+        }
+        super.handleOnDestroy();
     }
 }

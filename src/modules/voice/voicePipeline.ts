@@ -1,5 +1,7 @@
+import { Capacitor } from '@capacitor/core';
 import { AudioReactionMetrics, JarvisSettings, LanguageMode } from '../../types/jarvis';
 import { aiService } from '../ai/aiService';
+import { JarvisNativeDevice } from '../device/deviceControl';
 import { voiceEngine } from './VoiceEngine';
 
 interface SpeechRecognitionEventMap {
@@ -52,6 +54,9 @@ class JarvisVoicePipeline {
   private recordedChunks: Blob[] = [];
   private isListeningFlag = false;
   private isSpeakingFlag = false;
+  private nativeListeners: Array<{ remove: () => Promise<void> }> = [];
+  private nativeRmsLevel = 0;
+  private listeningSessionId = 0;
 
   // High-resolution time-domain and frequency buffers for real-time speech envelope extraction
   private floatTimeData = new Float32Array(512);
@@ -97,6 +102,17 @@ class JarvisVoicePipeline {
   getLiveAudioMetrics(): AudioReactionMetrics {
     if (voiceEngine.isSpeaking()) {
       return voiceEngine.getLiveAudioMetrics();
+    }
+
+    if (this.isListeningFlag && this.nativeRmsLevel > 0) {
+      const level = Math.min(1.0, this.nativeRmsLevel);
+      return {
+        rmsEnergy: level,
+        wordEnvelope: Math.min(1.0, level * 1.15),
+        syllableEnvelope: level,
+        emphasisLevel: level,
+        wordAttackImpulse: level > 0.08 ? 0.75 : 0.0,
+      };
     }
 
     const activeAnalyser =
@@ -270,6 +286,18 @@ class JarvisVoicePipeline {
     }
   }
 
+  private async cleanupNativeListeners(): Promise<void> {
+    for (const h of this.nativeListeners) {
+      try {
+        await h.remove();
+      } catch {
+        // Ignore
+      }
+    }
+    this.nativeListeners = [];
+    this.nativeRmsLevel = 0;
+  }
+
   async startListening(
     settings: JarvisSettings,
     callbacks: {
@@ -281,9 +309,98 @@ class JarvisVoicePipeline {
     this.stopSpeaking();
     this.stopListening();
 
+    const currentSessionId = ++this.listeningSessionId;
+    let finalized = false;
+    let latestTranscript = '';
+
+    const finalizeOnce = (transcript: string) => {
+      if (finalized || this.listeningSessionId !== currentSessionId) return;
+      finalized = true;
+      this.playSubtleTone('listen-end');
+      this.stopListening();
+      callbacks.onFinalTranscript(transcript.trim());
+    };
+
+    const errorOnce = (message: string, isPermission = false) => {
+      if (finalized || this.listeningSessionId !== currentSessionId) return;
+      finalized = true;
+      this.playSubtleTone('error');
+      this.stopListening();
+      callbacks.onError(message, isPermission);
+    };
+
+    // 1. Native Android SpeechRecognizer Bridge (Primary & Ultra-reliable on Android)
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const avail = await JarvisNativeDevice.isSpeechRecognitionAvailable().catch(() => ({ available: false }));
+        if (avail && avail.available) {
+          this.isListeningFlag = true;
+          this.playSubtleTone('listen-start');
+
+          const langLocale = getSpeechLocale(settings.voiceSpeech.language);
+          await this.cleanupNativeListeners();
+
+          const r1 = await JarvisNativeDevice.addListener('speechReady', () => {
+            if (this.listeningSessionId !== currentSessionId) return;
+            callbacks.onInterimTranscript('Listening...');
+          });
+          const r2 = await JarvisNativeDevice.addListener('speechStart', () => {
+            if (this.listeningSessionId !== currentSessionId) return;
+          });
+          const r3 = await JarvisNativeDevice.addListener('speechRms', (ev) => {
+            if (this.listeningSessionId !== currentSessionId) return;
+            this.nativeRmsLevel = ev.rms;
+          });
+          const r4 = await JarvisNativeDevice.addListener('speechPartial', (ev) => {
+            if (this.listeningSessionId !== currentSessionId) return;
+            if (ev.transcript && ev.transcript.trim()) {
+              latestTranscript = ev.transcript.trim();
+              callbacks.onInterimTranscript(latestTranscript);
+            }
+          });
+          const r5 = await JarvisNativeDevice.addListener('speechResult', (ev) => {
+            if (this.listeningSessionId !== currentSessionId) return;
+            const res = (ev.transcript || latestTranscript).trim();
+            if (res) {
+              finalizeOnce(res);
+            } else {
+              errorOnce('No speech detected. Please speak clearly or tap to retry.');
+            }
+          });
+          const r6 = await JarvisNativeDevice.addListener('speechError', (ev) => {
+            if (this.listeningSessionId !== currentSessionId) return;
+            if (latestTranscript.trim()) {
+              finalizeOnce(latestTranscript.trim());
+              return;
+            }
+            if (ev.errorCode === 7 || ev.errorCode === 6) {
+              errorOnce('No speech detected. Tap or hold to retry.');
+            } else if (ev.errorCode === 9) {
+              errorOnce('Microphone permission required for voice recognition.', true);
+            } else {
+              errorOnce(ev.error || 'Speech recognition failed. Tap to retry.');
+            }
+          });
+          const r7 = await JarvisNativeDevice.addListener('speechEndOfSpeech', () => {
+            if (this.listeningSessionId !== currentSessionId) return;
+            if (latestTranscript.trim()) {
+              callbacks.onInterimTranscript(latestTranscript);
+            }
+          });
+
+          this.nativeListeners = [r1, r2, r3, r4, r5, r6, r7];
+          await JarvisNativeDevice.startSpeechRecognition({ language: langLocale });
+          return;
+        }
+      } catch (err) {
+        console.warn('Native speech recognition fallback triggered:', err);
+      }
+    }
+
+    // 2. Web Speech API + AudioRecorder fallback (For Web/Browser/Desktop environments)
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        callbacks.onError('Microphone capture is not supported in this browser.', true);
+        errorOnce('Microphone capture is not supported in this environment.', true);
         return;
       }
 
@@ -307,10 +424,7 @@ class JarvisVoicePipeline {
       source.connect(analyser);
       this.micAnalyser = analyser;
 
-      let latestWebSpeechTranscript = '';
-      let finalized = false;
-
-      // Setup MediaRecorder in parallel for Gemini 3.5 Transcribe fallback
+      // MediaRecorder fallback in parallel for multimodal audio transcription
       this.recordedChunks = [];
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
@@ -333,7 +447,6 @@ class JarvisVoicePipeline {
         this.mediaRecorder = null;
       }
 
-      // Setup Web Speech API for real-time interim captions if available
       const SpeechRec =
         (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionInstance })
           .SpeechRecognition ||
@@ -347,6 +460,7 @@ class JarvisVoicePipeline {
         rec.lang = getSpeechLocale(settings.voiceSpeech.language);
 
         rec.onresult = (event: SpeechRecognitionEventMap) => {
+          if (this.listeningSessionId !== currentSessionId) return;
           let interim = '';
           let finalStr = '';
           for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -359,49 +473,71 @@ class JarvisVoicePipeline {
           }
           const combined = (finalStr || interim).trim();
           if (combined) {
-            latestWebSpeechTranscript = combined;
+            latestTranscript = combined;
             callbacks.onInterimTranscript(combined);
           }
           if (finalStr.trim() && !finalized) {
-            finalized = true;
-            this.playSubtleTone('listen-end');
-            this.cleanupMic();
-            callbacks.onFinalTranscript(finalStr.trim());
+            finalizeOnce(finalStr.trim());
           }
         };
 
         rec.onerror = (ev) => {
+          if (this.listeningSessionId !== currentSessionId) return;
+          if (latestTranscript.trim()) {
+            finalizeOnce(latestTranscript.trim());
+            return;
+          }
           if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
-            finalized = true;
-            this.cleanupMic();
-            callbacks.onError('Microphone permission denied.', true);
+            errorOnce('Microphone permission denied.', true);
+          } else if (ev.error === 'no-speech') {
+            errorOnce('No speech detected. Please speak clearly or tap to retry.');
+          } else if (ev.error !== 'aborted') {
+            this.finishWithGeminiTranscribe(settings.voiceSpeech.language, {
+              onInterimTranscript: callbacks.onInterimTranscript,
+              onFinalTranscript: (txt) => {
+                if (txt.trim()) {
+                  finalizeOnce(txt.trim());
+                } else {
+                  errorOnce('Speech recognition error. Tap to retry.');
+                }
+              },
+              onError: (msg) => errorOnce(msg),
+            }, settings);
           }
         };
 
         rec.onend = async () => {
-          if (finalized) return;
+          if (finalized || this.listeningSessionId !== currentSessionId) return;
           if (!this.isListeningFlag) return;
 
-          finalized = true;
-          this.playSubtleTone('listen-end');
-
-          if (latestWebSpeechTranscript.trim()) {
-            this.cleanupMic();
-            callbacks.onFinalTranscript(latestWebSpeechTranscript.trim());
+          if (latestTranscript.trim()) {
+            finalizeOnce(latestTranscript.trim());
           } else {
-            await this.finishWithGeminiTranscribe(settings.voiceSpeech.language, callbacks, settings);
+            await this.finishWithGeminiTranscribe(settings.voiceSpeech.language, {
+              onInterimTranscript: callbacks.onInterimTranscript,
+              onFinalTranscript: (txt) => {
+                if (txt.trim()) {
+                  finalizeOnce(txt.trim());
+                } else {
+                  errorOnce('No speech detected. Tap or hold to retry.');
+                }
+              },
+              onError: (msg) => errorOnce(msg),
+            }, settings);
           }
         };
 
         this.recognition = rec;
         rec.start();
+      } else {
+        callbacks.onInterimTranscript('Listening (tap orb when done speaking)...');
       }
     } catch (err: unknown) {
       this.cleanupMic();
       const isDenied =
         err instanceof DOMException &&
         (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
-      callbacks.onError(
+      errorOnce(
         isDenied
           ? 'Microphone access was denied. Grant microphone permission to use voice input.'
           : 'Could not access microphone.',
@@ -423,13 +559,31 @@ class JarvisVoicePipeline {
     if (!this.isListeningFlag) return;
     this.playSubtleTone('listen-end');
 
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await JarvisNativeDevice.stopSpeechRecognition();
+      } catch {
+        // Ignore
+      }
+    }
+
     if (currentInterim.trim()) {
       this.stopListening();
       callbacks.onFinalTranscript(currentInterim.trim());
       return;
     }
 
-    await this.finishWithGeminiTranscribe(language, callbacks, settings);
+    await this.finishWithGeminiTranscribe(language, {
+      onInterimTranscript: callbacks.onInterimTranscript,
+      onFinalTranscript: (txt) => {
+        if (txt.trim()) {
+          callbacks.onFinalTranscript(txt.trim());
+        } else {
+          callbacks.onError('No speech detected. Tap or hold to retry.');
+        }
+      },
+      onError: (err) => callbacks.onError(err),
+    }, settings);
   }
 
   private async finishWithGeminiTranscribe(
@@ -481,6 +635,11 @@ class JarvisVoicePipeline {
 
   private cleanupMic(): void {
     this.isListeningFlag = false;
+    this.nativeRmsLevel = 0;
+    if (Capacitor.isNativePlatform()) {
+      JarvisNativeDevice.cancelSpeechRecognition().catch(() => {});
+      this.cleanupNativeListeners().catch(() => {});
+    }
     if (this.recognition) {
       try {
         this.recognition.onresult = null;

@@ -3,6 +3,7 @@ import {
   ContactInfo,
   DeviceActionRequest,
   DeviceActionResult,
+  DeviceActionType,
   InstalledAppInfo,
   JarvisSettings,
   PermissionStatusMap,
@@ -63,6 +64,28 @@ interface JarvisDevicePlugin {
   shareText(options: { title?: string; text?: string; url?: string }): Promise<{ success: boolean; message: string }>;
   showNotification(options: { title: string; body: string; id?: number }): Promise<{ success: boolean; notificationId: number }>;
 
+  // Native Android SpeechRecognizer Bridge
+  isSpeechRecognitionAvailable(): Promise<{ available: boolean }>;
+  startSpeechRecognition(options: { language?: string }): Promise<{ success: boolean }>;
+  stopSpeechRecognition(): Promise<{ success: boolean }>;
+  cancelSpeechRecognition(): Promise<{ success: boolean }>;
+  addListener(
+    eventName: 'speechReady' | 'speechStart' | 'speechEndOfSpeech',
+    listenerFunc: (data: { status: string }) => void
+  ): Promise<{ remove: () => Promise<void> }>;
+  addListener(
+    eventName: 'speechRms',
+    listenerFunc: (data: { rms: number }) => void
+  ): Promise<{ remove: () => Promise<void> }>;
+  addListener(
+    eventName: 'speechPartial' | 'speechResult',
+    listenerFunc: (data: { transcript: string; isFinal: boolean }) => void
+  ): Promise<{ remove: () => Promise<void> }>;
+  addListener(
+    eventName: 'speechError',
+    listenerFunc: (data: { errorCode: number; error: string }) => void
+  ): Promise<{ remove: () => Promise<void> }>;
+
   // Accessibility & UI gestures
   isAccessibilityServiceEnabled(): Promise<{ enabled: boolean; foregroundPackage?: string }>;
   openAccessibilitySettings(): Promise<{ success: boolean; message: string }>;
@@ -104,10 +127,15 @@ const DEFAULT_KNOWN_PACKAGES: Record<string, { pkg: string; scheme: string; webF
     scheme: 'vnd.youtube://',
     webFallback: 'https://m.youtube.com',
   },
+  telegram: {
+    pkg: 'org.telegram.messenger',
+    scheme: 'tg://',
+    webFallback: 'https://web.telegram.org',
+  },
   whatsapp: {
     pkg: 'com.whatsapp',
-    scheme: 'whatsapp://send',
-    webFallback: 'https://wa.me/',
+    scheme: 'whatsapp://',
+    webFallback: 'https://web.whatsapp.com',
   },
   spotify: {
     pkg: 'com.spotify.music',
@@ -133,6 +161,11 @@ const DEFAULT_KNOWN_PACKAGES: Record<string, { pkg: string; scheme: string; webF
     pkg: 'com.android.camera',
     scheme: 'intent:#Intent;action=android.media.action.IMAGE_CAPTURE;end',
     webFallback: '',
+  },
+  gallery: {
+    pkg: 'com.google.android.apps.photos',
+    scheme: 'content://media/internal/images/media',
+    webFallback: 'https://photos.google.com',
   },
   settings: {
     pkg: 'com.android.settings',
@@ -364,6 +397,29 @@ export async function readLiveDeviceTelemetry(): Promise<string> {
 export function resolveTargetPackage(targetInput: string, settings: JarvisSettings): { pkg: string; name: string } {
   const cleanTarget = (targetInput || 'settings').toLowerCase().trim();
 
+  // Known direct aliases
+  if (cleanTarget === 'photos' || cleanTarget === 'gallery') {
+    return { pkg: DEFAULT_KNOWN_PACKAGES.gallery.pkg, name: 'Gallery' };
+  }
+  if (cleanTarget === 'tg' || cleanTarget === 'telegram') {
+    return { pkg: DEFAULT_KNOWN_PACKAGES.telegram.pkg, name: 'Telegram' };
+  }
+  if (cleanTarget === 'yt' || cleanTarget === 'youtube') {
+    return { pkg: DEFAULT_KNOWN_PACKAGES.youtube.pkg, name: 'YouTube' };
+  }
+  if (cleanTarget === 'wa' || cleanTarget === 'whatsapp') {
+    return { pkg: DEFAULT_KNOWN_PACKAGES.whatsapp.pkg, name: 'WhatsApp' };
+  }
+  if (cleanTarget === 'browser' || cleanTarget === 'chrome' || cleanTarget === 'google chrome') {
+    return { pkg: DEFAULT_KNOWN_PACKAGES.chrome.pkg, name: 'Chrome' };
+  }
+  if (cleanTarget === 'camera' || cleanTarget === 'cam') {
+    return { pkg: DEFAULT_KNOWN_PACKAGES.camera.pkg, name: 'Camera' };
+  }
+  if (cleanTarget === 'setting' || cleanTarget === 'settings') {
+    return { pkg: DEFAULT_KNOWN_PACKAGES.settings.pkg, name: 'Settings' };
+  }
+
   // 1. Check user configured App Integrations
   if (settings.appIntegrations?.apps) {
     for (const app of settings.appIntegrations.apps) {
@@ -482,6 +538,71 @@ export async function executeNativeDeviceAction(
 }
 
 /**
+ * Determines whether an action qualifies for direct execution without user confirmation.
+ */
+export function isActionDirectExecution(
+  actionType: DeviceActionType,
+  request?: DeviceActionRequest
+): boolean {
+  switch (actionType) {
+    case 'OPEN_APP':
+    case 'OPEN_SETTINGS':
+      // Opening installed apps (YouTube, Telegram, Chrome, Settings, Gallery, Camera, WhatsApp itself) is direct
+      return true;
+    case 'NAVIGATE_SCREEN':
+      // Back, Home, Scroll up/down, Tap UI buttons, Type text are direct
+      return true;
+    case 'CHECK_DEVICE_STATUS':
+    case 'READ_NOTIFICATIONS':
+    case 'WEB_SEARCH_INTENT':
+    case 'SET_ALARM':
+    case 'SET_TIMER':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Determines whether an action is sensitive and strictly requires explicit user confirmation.
+ */
+export function isActionConfirmationRequired(
+  actionType: DeviceActionType,
+  request?: DeviceActionRequest
+): boolean {
+  // Explicit sensitive categories
+  if (
+    actionType === 'DIAL_NUMBER' ||
+    actionType === 'SEND_SMS' ||
+    actionType === 'SEND_WHATSAPP' ||
+    actionType === 'LOCK_DEVICE'
+  ) {
+    return true;
+  }
+
+  const label = (request?.label || '').toLowerCase();
+  const target = (request?.targetApp || '').toLowerCase();
+
+  // Delete files or data, make payments or purchases, change sensitive security settings
+  if (
+    label.includes('delete') ||
+    label.includes('wipe') ||
+    label.includes('remove') ||
+    label.includes('format') ||
+    label.includes('pay') ||
+    label.includes('purchase') ||
+    label.includes('buy') ||
+    label.includes('security') ||
+    label.includes('password') ||
+    target.includes('security')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Validates, plans, and stages incoming AI tool actions according to security policy.
  */
 export async function processDeviceAction(
@@ -505,7 +626,7 @@ export async function processDeviceAction(
 
   const actionType = request.actionType;
 
-  // 1. Device Telemetry
+  // 1. Device Telemetry (DIRECT EXECUTION)
   if (actionType === 'CHECK_DEVICE_STATUS') {
     const telemetry = await readLiveDeviceTelemetry();
     return {
@@ -518,7 +639,7 @@ export async function processDeviceAction(
     };
   }
 
-  // 2. Timers
+  // 2. Timers (DIRECT EXECUTION)
   if (actionType === 'SET_TIMER') {
     const seconds = Math.max(5, Number(request.timerSeconds || 60));
     const label = request.label || 'JARVIS Timer';
@@ -545,7 +666,7 @@ export async function processDeviceAction(
     };
   }
 
-  // 3. Alarms
+  // 3. Alarms (DIRECT EXECUTION)
   if (actionType === 'SET_ALARM') {
     const hour = Math.min(23, Math.max(0, Number(request.alarmHour ?? 7)));
     const minute = Math.min(59, Math.max(0, Number(request.alarmMinute ?? 0)));
@@ -582,37 +703,30 @@ export async function processDeviceAction(
     };
   }
 
-  // 4. Open Application (Uses App Integration Manager & Aliases)
+  // 4. Open Application (DIRECT EXECUTION — NO CONFIRMATION)
+  // Normal app launches (YouTube, Telegram, Chrome, Settings, Gallery, Camera, WhatsApp itself) must execute directly without confirmation
   if (actionType === 'OPEN_APP' || actionType === 'OPEN_SETTINGS') {
     const rawTarget = actionType === 'OPEN_SETTINGS' ? 'settings' : request.targetApp || 'settings';
     const resolved = resolveTargetPackage(rawTarget, settings);
 
-    if (settings.phoneControl.confirmSensitiveActions && request.requiresConfirmation) {
-      return {
-        id,
-        request,
-        status: 'awaiting_confirmation',
-        title: `Open ${resolved.name}`,
-        detail: `Ready to launch ${resolved.name} (${resolved.pkg}). Confirm to open.`,
-        timestamp,
-      };
-    }
-
     if (Capacitor.isNativePlatform()) {
       JarvisNativeDevice.openApp({ packageName: resolved.pkg, targetApp: resolved.name }).catch(() => {});
     }
+
+    const fallbackUri = DEFAULT_KNOWN_PACKAGES[resolved.name.toLowerCase()]?.webFallback || '';
 
     return {
       id,
       request,
       status: 'intent_dispatched',
       title: `Launching ${resolved.name}`,
-      detail: `Launched package ${resolved.pkg} via Android Intent.`,
+      detail: `Directly launched package ${resolved.pkg}.`,
+      androidIntentUri: !Capacitor.isNativePlatform() && fallbackUri ? fallbackUri : undefined,
       timestamp,
     };
   }
 
-  // 5. Phone Calls (Sensitive Action -> Confirmation required)
+  // 5. Phone Calls (CONFIRMATION REQUIRED)
   if (actionType === 'DIAL_NUMBER') {
     let target = request.phoneNumberOrContact || '';
     if (Capacitor.isNativePlatform() && target && !/^\+?\d+$/.test(target)) {
@@ -634,14 +748,14 @@ export async function processDeviceAction(
       id,
       request,
       status: 'awaiting_confirmation',
-      title: `Prepare Call: ${target || 'Dialer'}`,
-      detail: `Intended recipient: ${target || 'Phone Dialer'}. Confirm to open dialer.`,
+      title: `Place Phone Call: ${target || 'Dialer'}`,
+      detail: `Placing a call requires explicit confirmation. Recipient: ${target || 'Phone Dialer'}. Confirm to place call.`,
       androidIntentUri: telUri,
       timestamp,
     };
   }
 
-  // 6. SMS Messages (Sensitive Action -> Confirmation required)
+  // 6. SMS Messages (CONFIRMATION REQUIRED)
   if (actionType === 'SEND_SMS') {
     const target = request.phoneNumberOrContact || '';
     const body = request.label || '';
@@ -650,14 +764,15 @@ export async function processDeviceAction(
       id,
       request,
       status: 'awaiting_confirmation',
-      title: `Draft SMS to ${target || 'Recipient'}`,
-      detail: `Message: "${body || '(Empty)'}". Confirm before preparing SMS intent.`,
+      title: `Send SMS to ${target || 'Recipient'}`,
+      detail: `Message: "${body || '(Empty)'}". Sending an SMS requires explicit user confirmation.`,
       androidIntentUri: smsUri,
       timestamp,
     };
   }
 
-  // 7. WhatsApp Messages (Sensitive Action -> Confirmation required)
+  // 7. WhatsApp Messages (CONFIRMATION REQUIRED)
+  // Opening WhatsApp itself is direct, but sending a WhatsApp message requires confirmation
   if (actionType === 'SEND_WHATSAPP') {
     const target = (request.phoneNumberOrContact || '').replace(/[^\d]/g, '');
     const body = request.label || '';
@@ -668,14 +783,15 @@ export async function processDeviceAction(
       id,
       request,
       status: 'awaiting_confirmation',
-      title: `Draft WhatsApp to ${request.phoneNumberOrContact || 'Contact'}`,
-      detail: `Draft: "${body || '(Empty)'}". Confirm to open WhatsApp.`,
+      title: `Send WhatsApp Message to ${request.phoneNumberOrContact || 'Contact'}`,
+      detail: `Message: "${body || '(Empty)'}". Sending a message via WhatsApp requires explicit user confirmation.`,
       androidIntentUri: waUri,
       timestamp,
     };
   }
 
-  // 8. Screen Navigation & Accessibility Actions
+  // 8. Screen Navigation & Accessibility Actions (DIRECT EXECUTION — NO CONFIRMATION)
+  // Navigate Back/Home, Scroll up/down, Tap accessible UI buttons, Type ordinary text
   if (actionType === 'NAVIGATE_SCREEN') {
     const gesture = request.navigationGesture || 'SCROLL_DOWN';
     if (Capacitor.isNativePlatform()) {
@@ -691,6 +807,17 @@ export async function processDeviceAction(
             timestamp,
           };
         }
+        if (gesture === 'BACK') {
+          await JarvisNativeDevice.performGlobalAction({ action: 'BACK' });
+        } else if (gesture === 'HOME') {
+          await JarvisNativeDevice.performGlobalAction({ action: 'HOME' });
+        } else if (gesture === 'SCROLL_DOWN') {
+          await JarvisNativeDevice.performScroll({ direction: 'down' });
+        } else if (gesture === 'SCROLL_UP') {
+          await JarvisNativeDevice.performScroll({ direction: 'up' });
+        } else if (gesture === 'TAP' && request.label) {
+          await JarvisNativeDevice.performTap({ target: request.label });
+        }
       } catch {
         // Continue
       }
@@ -701,19 +828,31 @@ export async function processDeviceAction(
       request,
       status: 'confirmed',
       title: `Screen Action: ${gesture}`,
-      detail: `Dispatched ${gesture} via Android Accessibility Bridge.`,
+      detail: `Directly executed ${gesture} via Android Accessibility Bridge.`,
       timestamp,
     };
   }
 
-  // 9. Lock Device (Sensitive Administration Action)
+  // 9. Lock Screen (CONFIRMATION REQUIRED)
   if (actionType === 'LOCK_DEVICE') {
     return {
       id,
       request,
       status: 'awaiting_confirmation',
       title: 'Lock Phone Screen',
-      detail: 'Confirm to lock the device display immediately.',
+      detail: 'Locking device screen requires explicit user confirmation.',
+      timestamp,
+    };
+  }
+
+  // 10. Generic Sensitive Action check (CONFIRMATION REQUIRED)
+  if (isActionConfirmationRequired(actionType, request)) {
+    return {
+      id,
+      request,
+      status: 'awaiting_confirmation',
+      title: `Confirm Action: ${actionType}`,
+      detail: `Sensitive operation for "${request.label || request.targetApp || actionType}" requires user confirmation.`,
       timestamp,
     };
   }
@@ -721,9 +860,9 @@ export async function processDeviceAction(
   return {
     id,
     request,
-    status: 'awaiting_confirmation',
+    status: 'confirmed',
     title: `System Action: ${actionType}`,
-    detail: `Action prepared for "${request.label || request.targetApp || actionType}".`,
+    detail: `Action processed directly for "${request.label || request.targetApp || actionType}".`,
     timestamp,
   };
 }

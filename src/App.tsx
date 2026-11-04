@@ -239,12 +239,10 @@ export default function App() {
         return next;
       });
 
-      if (
-        result.status === 'awaiting_confirmation' ||
-        (result.androidIntentUri && result.status === 'intent_dispatched')
-      ) {
+      if (result.status === 'awaiting_confirmation') {
         setPendingDeviceAction(result);
       } else {
+        setPendingDeviceAction(null);
         setCaptionSubtext(`${result.title}: ${result.detail}`);
       }
       return result;
@@ -652,11 +650,10 @@ export default function App() {
         }));
         refreshPermissions();
         if (!finalText.trim()) {
-          setInteractionState('idle');
-          setLiveCaption('');
+          triggerTransientErrorState('No speech detected. Tap or hold to retry.');
           return;
         }
-        processUserTurn(finalText, [], sttDuration);
+        processUserTurn(finalText.trim(), [], sttDuration);
       },
       onError: (errMsg) => {
         refreshPermissions();
@@ -700,8 +697,13 @@ export default function App() {
   }, [isSettingsOpen, isChatDrawerOpen, pendingDeviceAction, interactionState, handleStopActiveAction]);
 
   const handleCoreTap = useCallback(() => {
-    if (interactionState === 'speaking' || interactionState === 'thinking') {
+    if (interactionState === 'speaking') {
       handleStopActiveAction();
+      return;
+    }
+
+    if (interactionState === 'thinking') {
+      // Do not abort ongoing AI processing on background taps. Stop button is used for intentional cancellation.
       return;
     }
 
@@ -712,11 +714,10 @@ export default function App() {
           onInterimTranscript: (txt) => setLiveCaption(txt),
           onFinalTranscript: (finalText) => {
             if (!finalText.trim()) {
-              setInteractionState('idle');
-              setLiveCaption('');
+              triggerTransientErrorState('No speech detected. Tap or hold to retry.');
               return;
             }
-            processUserTurn(finalText, []);
+            processUserTurn(finalText.trim(), []);
           },
           onError: (errMsg) => triggerTransientErrorState(errMsg),
         },
@@ -750,11 +751,10 @@ export default function App() {
           onInterimTranscript: (txt) => setLiveCaption(txt),
           onFinalTranscript: (finalText) => {
             if (!finalText.trim()) {
-              setInteractionState('idle');
-              setLiveCaption('');
+              triggerTransientErrorState('No speech detected. Tap or hold to retry.');
               return;
             }
-            processUserTurn(finalText, []);
+            processUserTurn(finalText.trim(), []);
           },
           onError: (errMsg) => triggerTransientErrorState(errMsg),
         },

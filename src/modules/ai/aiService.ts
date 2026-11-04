@@ -252,7 +252,6 @@ class JarvisAIService {
 
       // Automatic local fallback if primary cloud is down and not already on backup
       if (targetUrl.includes('onrender.com') && currentFailoverEndpoint !== BACKUP_LOCAL_URL) {
-        currentFailoverEndpoint = BACKUP_LOCAL_URL;
         const fallbackUrl = `${BACKUP_LOCAL_URL}/api/ai/chat`;
         try {
           const retryResp = await fetch(fallbackUrl, {
@@ -262,6 +261,7 @@ class JarvisAIService {
             signal: this.abortController?.signal,
           });
           if (retryResp.ok) {
+            currentFailoverEndpoint = BACKUP_LOCAL_URL;
             const data = await retryResp.json();
             const text = data.text || '';
             callbacks.onTextDelta(text, text);

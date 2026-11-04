@@ -863,25 +863,42 @@ async function startServer() {
           ? "The speaker is speaking English."
           : "The speaker may be speaking English, Hindi, Hinglish, or Gujarati.";
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-transcribe",
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                mimeType,
-                data: audioBase64,
-              },
+      let transcript = "";
+      const candidateModels = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash",
+      ];
+
+      for (const modelName of candidateModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType,
+                    data: audioBase64,
+                  },
+                },
+                {
+                  text: `Transcribe this spoken audio accurately. ${langHint} Return ONLY the exact transcribed words spoken by the user, with no commentary or quotes. If there is only silence or background noise, return an empty string.`,
+                },
+              ],
             },
-            {
-              text: `Transcribe this spoken audio accurately. ${langHint} Return ONLY the exact transcribed words spoken by the user, with no commentary or quotes. If there is only silence or background noise, return an empty string.`,
-            },
-          ],
-        },
-      });
+          });
+          transcript = (response.text || "").trim();
+          if (transcript) break;
+        } catch {
+          // Try next model candidate
+        }
+      }
 
       res.json({
-        transcript: (response.text || "").trim(),
+        transcript,
       });
     } catch {
       // Return empty cleanly so client uses Web Speech transcript without throwing quota error
