@@ -4,4 +4,7 @@
     <string name="title_activity_main">JARVIS</string>
     <string name="package_name">com.padhiyar.jarvis</string>
     <string name="custom_url_scheme">com.padhiyar.jarvis</string>
+    <string name="accessibility_service_label">JARVIS AI Screen &amp; Action Controller</string>
+    <string name="accessibility_service_description">Provides safe, user-requested voice navigation, visible text reading, and hands-free screen interaction for JARVIS Assistant.</string>
+    <string name="device_admin_description">Enables user-requested system administration actions such as locking the screen upon voice command.</string>
 </resources>

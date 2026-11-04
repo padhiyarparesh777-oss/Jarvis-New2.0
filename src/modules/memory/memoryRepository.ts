@@ -22,7 +22,7 @@ const STORAGE_KEYS = {
 
 export const DEFAULT_SETTINGS: JarvisSettings = {
   aiBrain: {
-    provider: 'gemini',
+    provider: 'auto-hybrid',
     model: 'gemini-3.8-flash',
     fallbackModel: 'gemini-3.1-flash-lite',
     responseStyle: 'natural',
@@ -31,17 +31,33 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
     thinkingLevel: 'LOW',
     streamingEnabled: true,
     webSearchGrounding: true,
-    backendUrl: '',
+    backendUrl: 'https://jarvis-ai-backend-pdy8.onrender.com',
+  },
+  personality: {
+    addressPreference: 'adaptive',
+    emotionMode: 'adaptive',
+    expressiveness: 0.85,
+    userName: 'Sir',
   },
   voiceSpeech: {
     language: 'auto',
-    voiceEngine: 'gemini-tts',
+    voiceEngine: 'elevenlabs',
     geminiVoice: 'Charon',
     speechSpeed: 1.0,
     autoListenFollowUp: false,
     touchToSpeakMode: 'tap-toggle',
     voiceOutputEnabled: true,
     wakeWordForegroundActive: false,
+    elevenLabs: {
+      enabled: true,
+      voiceId: 'pNInz6obpgDQGcFmaJgB', // Adam / JARVIS male archetype
+      modelId: 'eleven_multilingual_v2',
+      stability: 0.52,
+      similarityBoost: 0.82,
+      style: 0.35,
+      useSpeakerBoost: true,
+      latencyMode: 1,
+    },
   },
   phoneControl: {
     enabled: true,
@@ -49,6 +65,40 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
     accessibilityBridgeEnabled: false,
     preferNativeIntents: true,
     whatsappIntegrationEnabled: true,
+  },
+  accessibility: {
+    serviceEnabled: false,
+    autoReadScreen: true,
+    allowInputText: true,
+    allowNavigation: true,
+    allowlistPackages: [],
+  },
+  backgroundAssistant: {
+    enabled: false,
+    serviceState: 'stopped',
+    persistentNotification: true,
+    bootStart: false,
+    notificationListener: false,
+  },
+  appIntegrations: {
+    enabled: true,
+    apps: [
+      { packageName: 'com.google.android.youtube', appName: 'YouTube', aliases: ['youtube', 'yt', 'videos'], enabled: true },
+      { packageName: 'com.whatsapp', appName: 'WhatsApp', aliases: ['whatsapp', 'wa', 'chat'], enabled: true },
+      { packageName: 'com.spotify.music', appName: 'Spotify', aliases: ['spotify', 'music', 'gaana'], enabled: true },
+      { packageName: 'com.google.android.apps.maps', appName: 'Google Maps', aliases: ['maps', 'navigation', 'rasta'], enabled: true },
+      { packageName: 'com.android.chrome', appName: 'Google Chrome', aliases: ['chrome', 'browser', 'internet'], enabled: true },
+      { packageName: 'com.google.android.gm', appName: 'Gmail', aliases: ['gmail', 'email', 'mail'], enabled: true },
+      { packageName: 'com.android.camera', appName: 'Camera', aliases: ['camera', 'photo'], enabled: true },
+      { packageName: 'com.android.settings', appName: 'Settings', aliases: ['settings', 'phone settings'], enabled: true },
+    ],
+  },
+  cloudLocal: {
+    primaryUrl: 'https://jarvis-ai-backend-pdy8.onrender.com',
+    backupUrl: 'http://127.0.0.1:3000',
+    activeEndpoint: 'primary',
+    autoFailover: true,
+    cloudHealthy: true,
   },
   screenVision: {
     autoAnalyzeOnCapture: true,
@@ -161,23 +211,57 @@ export const memoryRepository = {
         rawVoice === 'Charon' || rawVoice === 'Fenrir' || rawVoice === 'Puck'
           ? rawVoice
           : 'Charon';
+      const rawVoiceEngine = parsed.voiceSpeech?.voiceEngine;
+      const validVoiceEngine =
+        rawVoiceEngine === 'elevenlabs' || rawVoiceEngine === 'edge-neural' || rawVoiceEngine === 'gemini-tts'
+          ? rawVoiceEngine
+          : DEFAULT_SETTINGS.voiceSpeech.voiceEngine;
+
       return {
         aiBrain: {
           ...DEFAULT_SETTINGS.aiBrain,
           ...(parsed.aiBrain || {}),
           provider: normalizedProvider,
           backendUrl:
-            typeof parsed.aiBrain?.backendUrl === 'string'
+            typeof parsed.aiBrain?.backendUrl === 'string' && parsed.aiBrain.backendUrl.trim()
               ? parsed.aiBrain.backendUrl
-              : '',
+              : DEFAULT_SETTINGS.aiBrain.backendUrl,
+        },
+        personality: {
+          ...DEFAULT_SETTINGS.personality,
+          ...(parsed.personality || {}),
         },
         voiceSpeech: {
           ...DEFAULT_SETTINGS.voiceSpeech,
           ...(parsed.voiceSpeech || {}),
-          voiceEngine: 'gemini-tts',
+          voiceEngine: validVoiceEngine,
           geminiVoice: validMaleVoice,
+          elevenLabs: {
+            ...DEFAULT_SETTINGS.voiceSpeech.elevenLabs,
+            ...(parsed.voiceSpeech?.elevenLabs || {}),
+          },
         },
         phoneControl: { ...DEFAULT_SETTINGS.phoneControl, ...(parsed.phoneControl || {}) },
+        accessibility: {
+          ...DEFAULT_SETTINGS.accessibility,
+          ...(parsed.accessibility || {}),
+        },
+        backgroundAssistant: {
+          ...DEFAULT_SETTINGS.backgroundAssistant,
+          ...(parsed.backgroundAssistant || {}),
+        },
+        appIntegrations: {
+          ...DEFAULT_SETTINGS.appIntegrations,
+          ...(parsed.appIntegrations || {}),
+          apps:
+            Array.isArray(parsed.appIntegrations?.apps) && parsed.appIntegrations.apps.length > 0
+              ? parsed.appIntegrations.apps
+              : DEFAULT_SETTINGS.appIntegrations.apps,
+        },
+        cloudLocal: {
+          ...DEFAULT_SETTINGS.cloudLocal,
+          ...(parsed.cloudLocal || {}),
+        },
         screenVision: { ...DEFAULT_SETTINGS.screenVision, ...(parsed.screenVision || {}) },
         chatInterface: { ...DEFAULT_SETTINGS.chatInterface, ...(parsed.chatInterface || {}) },
         memory: { ...DEFAULT_SETTINGS.memory, ...(parsed.memory || {}) },

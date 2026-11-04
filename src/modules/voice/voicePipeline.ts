@@ -1,5 +1,6 @@
 import { AudioReactionMetrics, JarvisSettings, LanguageMode } from '../../types/jarvis';
 import { aiService } from '../ai/aiService';
+import { voiceEngine } from './VoiceEngine';
 
 interface SpeechRecognitionEventMap {
   resultIndex: number;
@@ -94,6 +95,10 @@ class JarvisVoicePipeline {
    * - wordAttackImpulse: detects word start boundaries after silence/pauses
    */
   getLiveAudioMetrics(): AudioReactionMetrics {
+    if (voiceEngine.isSpeaking()) {
+      return voiceEngine.getLiveAudioMetrics();
+    }
+
     const activeAnalyser =
       this.isSpeakingFlag && this.ttsAnalyser
         ? this.ttsAnalyser
@@ -519,75 +524,36 @@ class JarvisVoicePipeline {
     }
 
     this.isSpeakingFlag = true;
-    this.adaptivePeakCeiling = 0.2;
 
     try {
-      const base64Audio = await aiService.synthesizeSpeech(
+      await voiceEngine.speakFullText(
         cleanText,
-        settings.voiceSpeech.geminiVoice,
-        settings.voiceSpeech.language,
-        settings
-      );
-
-      if (!this.isSpeakingFlag) {
-        onEnd();
-        return;
-      }
-
-      if (base64Audio) {
-        const ctx = this.ensureAudioContext();
-        const binary = atob(base64Audio);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-
-        const audioBuffer = await ctx.decodeAudioData(bytes.buffer.slice(0));
-        if (!this.isSpeakingFlag) {
-          onEnd();
-          return;
-        }
-
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.playbackRate.value = Math.min(
-          1.5,
-          Math.max(0.75, settings.voiceSpeech.speechSpeed)
-        );
-
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.55;
-
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-
-        this.ttsSource = source;
-        this.ttsAnalyser = analyser;
-
-        onStart();
-        source.onended = () => {
-          if (this.ttsSource === source) {
+        settings,
+        {
+          onStart: () => {
+            this.isSpeakingFlag = true;
+            onStart();
+          },
+          onEnd: () => {
             this.isSpeakingFlag = false;
-            this.ttsSource = null;
-            this.ttsAnalyser = null;
             onEnd();
-          }
-        };
-
-        source.start(0);
-        return;
-      }
+          },
+          onError: () => {
+            this.isSpeakingFlag = false;
+            onEnd();
+          },
+        },
+        settings.personality.emotionMode
+      );
     } catch {
-      // Neural audio stream ended or unavailable; do not invoke robotic Android SpeechSynthesis
+      this.isSpeakingFlag = false;
+      onEnd();
     }
-
-    this.isSpeakingFlag = false;
-    onEnd();
   }
 
   stopSpeaking(): void {
     this.isSpeakingFlag = false;
+    voiceEngine.interrupt();
     if (this.ttsSource) {
       try {
         this.ttsSource.onended = null;

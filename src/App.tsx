@@ -18,6 +18,7 @@ import {
   GroundingSource,
   InteractionState,
   JarvisSettings,
+  LatencyMetrics,
   MemoryFact,
   PermissionStatusMap,
   PlannerTask,
@@ -37,6 +38,8 @@ import {
 } from './modules/device/deviceControl';
 import { aiService, PlannerToolAction } from './modules/ai/aiService';
 import { voicePipeline } from './modules/voice/voicePipeline';
+import { voiceEngine } from './modules/voice/VoiceEngine';
+import { personaEngine } from './modules/persona/PersonaEngine';
 import { NeuralNetworkCore } from './modules/neural/NeuralNetworkCore';
 import { BottomChatComposer } from './modules/chat/BottomChatComposer';
 import { SettingsModal } from './modules/settings/SettingsModal';
@@ -90,6 +93,12 @@ export default function App() {
   const [captionSubtext, setCaptionSubtext] = useState<string>('');
   const [pendingDeviceAction, setPendingDeviceAction] = useState<DeviceActionResult | null>(null);
   const [activeTimers, setActiveTimers] = useState<ActiveTimerOrAlarm[]>([]);
+  const [latencyMetrics, setLatencyMetrics] = useState<LatencyMetrics>({
+    sttLatencyMs: 0,
+    aiFirstTokenMs: 0,
+    ttsFirstAudioMs: 0,
+    totalTurnMs: 0,
+  });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
@@ -115,6 +124,7 @@ export default function App() {
   const captionFadeTimeoutRef = useRef<number | null>(null);
   const errorResetTimeoutRef = useRef<number | null>(null);
   const interimTranscriptRef = useRef<string>('');
+  const sttStartTimeRef = useRef<number>(0);
 
   const activeThread =
     threads.find((t) => t.id === activeThreadId) || threads[0];
@@ -429,19 +439,32 @@ export default function App() {
   );
 
   const processUserTurn = useCallback(
-    async (text: string, attachments: ChatAttachment[] = []) => {
+    async (text: string, attachments: ChatAttachment[] = [], sttDurationMs = 0) => {
       const cleanInput = text.trim();
       if (!cleanInput && attachments.length === 0) {
         setInteractionState('idle');
         return;
       }
 
+      const turnStartTime = Date.now();
       clearCaptionTimer();
       const displayPrompt =
         cleanInput ||
         `Analyzing ${attachments.map((a) => a.name).join(', ')}...`;
       setLiveCaption(displayPrompt);
-      setCaptionSubtext('');
+
+      // Immediate acknowledgement when processing starts
+      if (cleanInput) {
+        const immediateAck = personaEngine.generateImmediateAck(
+          cleanInput,
+          settings.voiceSpeech.language,
+          settings.personality?.addressPreference || 'adaptive'
+        );
+        setCaptionSubtext(immediateAck);
+      } else {
+        setCaptionSubtext('');
+      }
+
       setInteractionState('thinking');
 
       const userMessage: ChatMessage = {
@@ -467,6 +490,39 @@ export default function App() {
       const permSummary = `Microphone: ${permissions.microphone}, Camera: ${permissions.camera}, Notifications: ${permissions.notifications}, AndroidIntents: ${permissions.androidIntents}, Accessibility: ${permissions.accessibilityService}`;
 
       let collectedGrounding: GroundingSource[] = [];
+      let sentenceBuffer = '';
+      let firstTtsAudioLogged = false;
+
+      // Start streaming TTS session if voice output is enabled
+      if (settings.voiceSpeech.voiceOutputEnabled) {
+        voiceEngine.startStreamingSession({
+          onStart: () => {
+            setInteractionState('speaking');
+          },
+          onSentenceStart: (_sentence, _idx) => {
+            if (!firstTtsAudioLogged) {
+              firstTtsAudioLogged = true;
+              setLatencyMetrics((prev) => ({
+                ...prev,
+                ttsFirstAudioMs: Date.now() - turnStartTime,
+              }));
+            }
+          },
+          onEnd: () => {
+            setInteractionState('idle');
+            scheduleCaptionFadeOut(6500);
+            if (settings.voiceSpeech.autoListenFollowUp) {
+              window.setTimeout(() => {
+                beginVoiceListening();
+              }, 450);
+            }
+          },
+          onError: () => {
+            setInteractionState('idle');
+            scheduleCaptionFadeOut(4000);
+          },
+        });
+      }
 
       await aiService.streamConversation(
         currentMessages,
@@ -475,8 +531,28 @@ export default function App() {
         memories,
         permSummary,
         {
-          onTextDelta: (_delta, fullText) => {
+          onFirstToken: (latencyMs) => {
+            setLatencyMetrics((prev) => ({
+              ...prev,
+              aiFirstTokenMs: latencyMs,
+              sttLatencyMs: sttDurationMs || prev.sttLatencyMs,
+            }));
+          },
+          onTextDelta: (delta, fullText) => {
             setLiveCaption(fullText);
+            if (settings.voiceSpeech.voiceOutputEnabled) {
+              sentenceBuffer += delta;
+              // Detect completed sentence boundaries (. ! ? । or \n)
+              const match = sentenceBuffer.match(/^([\s\S]*?[.!?।\n]+)(\s+[\s\S]*)$/);
+              if (match) {
+                const completedSentence = match[1].trim();
+                sentenceBuffer = match[2];
+                if (completedSentence.length > 1) {
+                  const emotion = personaEngine.classifyEmotion(cleanInput, completedSentence);
+                  voiceEngine.enqueueSentenceChunk(completedSentence, settings, emotion);
+                }
+              }
+            }
           },
           onDeviceAction: (req) => {
             handleExecuteDeviceAction(req);
@@ -510,29 +586,28 @@ export default function App() {
               setIsChatDrawerOpen(true);
             }
 
+            const totalTurn = Date.now() - turnStartTime;
+            setLatencyMetrics((prev) => ({
+              ...prev,
+              totalTurnMs: totalTurn,
+              ttsFirstAudioMs: prev.ttsFirstAudioMs || voiceEngine.getLastTtsLatency() || 0,
+            }));
+
             if (settings.voiceSpeech.voiceOutputEnabled) {
-              await voicePipeline.speak(
-                replyText,
-                settings,
-                () => {
-                  setInteractionState('speaking');
-                },
-                () => {
-                  setInteractionState('idle');
-                  scheduleCaptionFadeOut(6500);
-                  if (settings.voiceSpeech.autoListenFollowUp) {
-                    window.setTimeout(() => {
-                      beginVoiceListening();
-                    }, 450);
-                  }
-                }
-              );
+              // Flush any remaining text in sentenceBuffer
+              const remaining = sentenceBuffer.trim();
+              if (remaining.length > 0) {
+                const emotion = personaEngine.classifyEmotion(cleanInput, remaining);
+                voiceEngine.enqueueSentenceChunk(remaining, settings, emotion);
+              }
+              voiceEngine.finishStreamingSession(settings);
             } else {
               setInteractionState('idle');
               scheduleCaptionFadeOut(6500);
             }
           },
           onError: (errMsg) => {
+            voiceEngine.interrupt();
             triggerTransientErrorState(errMsg);
           },
         }
@@ -555,9 +630,11 @@ export default function App() {
   const beginVoiceListening = useCallback(() => {
     clearCaptionTimer();
     aiService.cancelActiveRequest();
+    voiceEngine.interrupt();
     voicePipeline.stopSpeaking();
 
     interimTranscriptRef.current = '';
+    sttStartTimeRef.current = Date.now();
     setInteractionState('listening');
     setLiveCaption('');
     setCaptionSubtext('');
@@ -568,13 +645,18 @@ export default function App() {
         setLiveCaption(interim);
       },
       onFinalTranscript: (finalText) => {
+        const sttDuration = Date.now() - sttStartTimeRef.current;
+        setLatencyMetrics((prev) => ({
+          ...prev,
+          sttLatencyMs: sttDuration,
+        }));
         refreshPermissions();
         if (!finalText.trim()) {
           setInteractionState('idle');
           setLiveCaption('');
           return;
         }
-        processUserTurn(finalText, []);
+        processUserTurn(finalText, [], sttDuration);
       },
       onError: (errMsg) => {
         refreshPermissions();
@@ -585,6 +667,7 @@ export default function App() {
 
   const handleStopActiveAction = useCallback(() => {
     aiService.cancelActiveRequest();
+    voiceEngine.interrupt();
     voicePipeline.stopSpeaking();
     voicePipeline.stopListening();
     setInteractionState('idle');
@@ -837,7 +920,7 @@ export default function App() {
               onClick={async () => {
                 const action = pendingDeviceAction;
                 setPendingDeviceAction(null);
-                const res = await executeNativeDeviceAction(action);
+                const res = await executeNativeDeviceAction(action, settings);
                 setCaptionSubtext(res.message);
               }}
               className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#FFC928] text-black font-semibold inline-flex items-center gap-1 whitespace-nowrap shrink-0 hover:bg-[#FFDF70] transition-colors"
@@ -924,6 +1007,7 @@ export default function App() {
         onWipeAll={handleWipeAll}
         storageStats={memoryRepository.getStorageStats()}
         renderTelemetry={renderTelemetry}
+        latencyMetrics={latencyMetrics}
       />
     </div>
   );

@@ -27,6 +27,14 @@ import com.getcapacitor.annotation.PermissionCallback;
         @Permission(
             alias = "notifications",
             strings = { Manifest.permission.POST_NOTIFICATIONS }
+        ),
+        @Permission(
+            alias = "contacts",
+            strings = { Manifest.permission.READ_CONTACTS }
+        ),
+        @Permission(
+            alias = "phone",
+            strings = { Manifest.permission.READ_PHONE_STATE, Manifest.permission.CALL_PHONE }
         )
     }
 )
@@ -53,6 +61,14 @@ public class JarvisPermissionsPlugin extends Plugin {
             boolean enabled = NotificationManagerCompat.from(ctx).areNotificationsEnabled();
             ret.put("notifications", enabled ? "granted" : "denied");
         }
+
+        // Check contacts permission
+        PermissionState contactsState = getPermissionState("contacts");
+        ret.put("contacts", contactsState != null ? contactsState.toString().toLowerCase() : "prompt");
+
+        // Check phone permission
+        PermissionState phoneState = getPermissionState("phone");
+        ret.put("phone", phoneState != null ? phoneState.toString().toLowerCase() : "prompt");
 
         ret.put("androidIntents", "ready");
         call.resolve(ret);
@@ -101,6 +117,32 @@ public class JarvisPermissionsPlugin extends Plugin {
         PermissionState camState = getPermissionState("camera");
         JSObject ret = new JSObject();
         ret.put("camera", camState != null ? camState.toString().toLowerCase() : "denied");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestContactsPermission(PluginCall call) {
+        requestPermissionForAlias("contacts", call, "contactsPermCallback");
+    }
+
+    @PermissionCallback
+    private void contactsPermCallback(PluginCall call) {
+        PermissionState state = getPermissionState("contacts");
+        JSObject ret = new JSObject();
+        ret.put("contacts", state != null ? state.toString().toLowerCase() : "denied");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestPhonePermission(PluginCall call) {
+        requestPermissionForAlias("phone", call, "phonePermCallback");
+    }
+
+    @PermissionCallback
+    private void phonePermCallback(PluginCall call) {
+        PermissionState state = getPermissionState("phone");
+        JSObject ret = new JSObject();
+        ret.put("phone", state != null ? state.toString().toLowerCase() : "denied");
         call.resolve(ret);
     }
 }

@@ -133,12 +133,36 @@ function buildSystemInstruction(options: {
   language: string;
   responseStyle: string;
   personality: string;
+  addressPreference?: string;
+  emotionMode?: string;
   memories: string[];
   permissionsSummary: string;
 }): string {
+  const salutationDirective =
+    options.addressPreference === "sir"
+      ? 'Always address the user with deep respect as "Sir".'
+      : options.addressPreference === "boss"
+      ? 'Address the user confidently and familiarly as "Boss".'
+      : 'Address the user dynamically: use "Sir" during technical briefings, system statuses, alerts, and analytical replies; use "Boss" during quick actions, routine tasks, multimedia commands, or casual conversational moments. Blend them naturally without robotic overuse.';
+
+  const emotionDirective =
+    options.emotionMode === "calm"
+      ? "Tone: Exceptionally calm, steady, measured, and soothing."
+      : options.emotionMode === "happy"
+      ? "Tone: Warm, optimistic, pleased, and upbeat."
+      : options.emotionMode === "serious"
+      ? "Tone: Direct, focused, grave, and mission-critical."
+      : options.emotionMode === "concerned"
+      ? "Tone: Attentive, protective, and genuinely cautious."
+      : options.emotionMode === "excited"
+      ? "Tone: High-energy, sharp, enthusiastic, and forward-looking."
+      : options.emotionMode === "reassuring"
+      ? "Tone: Grounded, confident, comforting, and unwavering."
+      : "Tone: Emotionally expressive—respond with composed wit, warm reassurance, or alert seriousness fitting the situation.";
+
   const styleGuide =
     options.responseStyle === "concise"
-      ? "Keep responses ultra-concise (1 to 2 crisp sentences maximum), calm, direct, and suitable for immediate voice playback."
+      ? "Keep responses ultra-concise (1 to 2 crisp sentences maximum), calm, direct, and suitable for immediate male voice playback."
       : options.responseStyle === "analytical"
       ? "Provide structured, insightful, and technically rigorous responses while remaining natural for spoken delivery."
       : "Speak naturally, intelligently, and warmly with composed futuristic precision (2 to 4 sentences unless detailed analysis is requested).";
@@ -156,11 +180,11 @@ function buildSystemInstruction(options: {
     options.language === "hi"
       ? "Respond primarily in natural Hindi (हिन्दी). You may use common English technical terms naturally."
       : options.language === "hinglish"
-      ? "Respond in natural Hinglish (conversational blend of Hindi and English written in Latin or Devanagari script matching the user's input)."
+      ? "Respond in natural Hinglish (conversational blend of Hindi and English matching the user's colloquial style)."
       : options.language === "gu"
-      ? "Respond primarily in natural Gujarati (ગુજરાતી)."
+      ? "Respond primarily in natural Gujarati (ગુજરાતી, e.g., 'હા સર, હું તરત જ આ કામ કરી આપું છું')."
       : options.language === "auto"
-      ? "Automatically detect whether the user is speaking or typing in English, Hindi, Hinglish, or Gujarati, and reply fluently in that exact language/style."
+      ? "Multilingual adaptation: Flawlessly understand and speak English, Hindi, Gujarati, and Hinglish. If the user code-switches within a single sentence, respond naturally in their linguistic blend."
       : "Respond in clear, articulate English unless the user speaks in Hindi, Hinglish, or Gujarati, in which case adapt seamlessly.";
 
   const memoryContext =
@@ -168,18 +192,25 @@ function buildSystemInstruction(options: {
       ? `\nRelevant User Memory & Context:\n${options.memories.map((m) => `- ${m}`).join("\n")}`
       : "";
 
-  return `You are JARVIS AI, an advanced, practical, privacy-conscious Android & Web Personal AI Assistant.
+  return `You are JARVIS, an advanced, practical, emotionally intelligent Personal Android Assistant.
 Identity & Demeanor:
+- Male AI Voice identity.
+- ${salutationDirective}
 - ${personaGuide}
+- ${emotionDirective}
 - ${styleGuide}
-- Language directive: ${langGuide}
+- ${langGuide}
+- Anti-robotics rule: NEVER repeat stale greetings like "Hello! How can I help you today?". Dive directly into the answer or prepared action.
 
 Capabilities & Honesty Rules:
 - Current Android/Runtime Permission Status: ${options.permissionsSummary || "Standard Web/Android Intent bridge active"}.
-- When the user asks to open an app, set an alarm/timer, dial a number, send an SMS or WhatsApp message, navigate the screen, or check device status, invoke \`executeDeviceAction\` or confirm the prepared intent.
-- When the user asks to add a task, reminder, or start a routine like "Work Mode", invoke \`managePlannerItem\`.
-- When the user uploads an image, photo, camera snapshot, PDF, or file, analyze its actual contents thoroughly and answer their question or command about it.
-- Never claim a restricted native Android action, call, or message succeeded automatically without user confirmation; state clearly that you have prepared the action or Android intent for confirmation.
+- Distinct Action Stages:
+  1. Answering a question (provide clear, factual insight).
+  2. Preparing an action (specify target, parameters, and intent).
+  3. Executing an approved action (invoke executeDeviceAction).
+  4. Reporting an actual action result (report truthfully based on device result).
+- Never claim a restricted native Android action, call, or message succeeded automatically without confirmation; state clearly that you have prepared the action.
+- Sensitive actions (placing phone calls, sending SMS, WhatsApp messages, deleting data, financial actions) require explicit user confirmation.
 ${memoryContext}`;
 }
 
@@ -476,6 +507,8 @@ async function startServer() {
       language = "auto",
       responseStyle = "natural",
       personality = "executive",
+      addressPreference = "adaptive",
+      emotionMode = "adaptive",
       memories = [],
       permissionsSummary = "",
       webSearchGrounding = false,
@@ -493,6 +526,8 @@ async function startServer() {
       language,
       responseStyle,
       personality,
+      addressPreference,
+      emotionMode,
       memories,
       permissionsSummary,
     });
@@ -854,9 +889,15 @@ async function startServer() {
     }
   });
 
-  // 5. 100% Free Unlimited Male Neural Text-to-Speech (Microsoft Edge Neural Male Voices + StreamElements Brian Male + Gemini Male)
+  // 5. Male Neural Text-to-Speech Engine (ElevenLabs Primary + Microsoft Edge Neural Male + StreamElements Brian Male + Gemini Male)
   app.post("/api/ai/tts", async (req, res) => {
-    const { text, voiceName = "Charon", language = "auto" } = req.body;
+    const {
+      text,
+      voiceName = "Charon",
+      language = "auto",
+      voiceEngine = "elevenlabs",
+      elevenLabs,
+    } = req.body;
     const cleanText = String(text || "").trim();
     if (!cleanText) {
       res
@@ -868,7 +909,72 @@ async function startServer() {
     const hasDevanagari = /[\u0900-\u097F]/.test(cleanText);
     const hasGujarati = /[\u0A80-\u0AFF]/.test(cleanText);
 
-    // 1. Primary: Free Unlimited Microsoft Edge Neural MALE Voices (Zero API Quota Limits)
+    // 1. Primary: ElevenLabs Unified Male Voice (Multilingual v2 / Turbo / Flash v2.5 / v3)
+    const elevenApiKey = process.env.ELEVENLABS_API_KEY;
+    const isElevenRequested =
+      voiceEngine === "elevenlabs" || elevenLabs?.enabled === true;
+
+    if (isElevenRequested && elevenApiKey && elevenApiKey.trim()) {
+      try {
+        const voiceId = elevenLabs?.voiceId || "pNInz6obpgDQGcFmaJgB"; // Default consistent male voice ID (Adam)
+        const modelId = elevenLabs?.modelId || "eleven_multilingual_v2";
+        const stability =
+          typeof elevenLabs?.stability === "number" ? elevenLabs.stability : 0.52;
+        const similarityBoost =
+          typeof elevenLabs?.similarityBoost === "number"
+            ? elevenLabs.similarityBoost
+            : 0.82;
+        const style =
+          typeof elevenLabs?.style === "number" ? elevenLabs.style : 0.35;
+        const useSpeakerBoost = elevenLabs?.useSpeakerBoost !== false;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+
+        const elevenUrl = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(
+          voiceId
+        )}?optimize_streaming_latency=1&output_format=mp3_44100_128`;
+
+        const elevenResp = await fetch(elevenUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "xi-api-key": elevenApiKey.trim(),
+            Accept: "audio/mpeg",
+          },
+          body: JSON.stringify({
+            text: cleanText.slice(0, 1500),
+            model_id: modelId,
+            voice_settings: {
+              stability,
+              similarity_boost: similarityBoost,
+              style,
+              use_speaker_boost: useSpeakerBoost,
+            },
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (elevenResp.ok) {
+          const arrayBuf = await elevenResp.arrayBuffer();
+          if (arrayBuf.byteLength > 128) {
+            res.json({
+              audioBase64: Buffer.from(arrayBuf).toString("base64"),
+              mimeType: "audio/mpeg",
+              provider: "elevenlabs",
+              voiceId,
+              modelId,
+            });
+            return;
+          }
+        }
+      } catch {
+        // Fall through seamlessly to free neural male voices
+      }
+    }
+
+    // 2. High-Fidelity Secondary: Free Unlimited Microsoft Edge Neural MALE Voices (Zero API Quota Limits)
     try {
       let edgeMaleVoice = "en-IN-PrabhatNeural"; // Natural Indian/Hinglish Male Neural Voice
       if (language === "gu" || hasGujarati) {
@@ -988,6 +1094,51 @@ async function startServer() {
     res.status(500).json({
       error: "TTS_ERROR",
       message: "Male neural speech synthesis unavailable.",
+    });
+  });
+
+  // 6. Voice Engine Diagnostics & Supported Models Endpoint
+  app.get("/api/ai/tts/diagnostics", async (_req, res) => {
+    const elevenKey = process.env.ELEVENLABS_API_KEY;
+    const elevenConfigured = Boolean(elevenKey && elevenKey.trim() !== "");
+
+    res.json({
+      elevenlabs: {
+        configured: elevenConfigured,
+        defaultVoiceId: "pNInz6obpgDQGcFmaJgB",
+        recommendedMaleVoices: [
+          { id: "pNInz6obpgDQGcFmaJgB", name: "Adam (Deep, Confident Male - Primary JARVIS)" },
+          { id: "JBFqnCBsd6RMkjVDRZzb", name: "George (Warm British Male - Classic JARVIS)" },
+          { id: "ErXwobaYiN019PkySvjV", name: "Antoni (Expressive Multilingual Male)" },
+          { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh (Calm, Natural Male)" },
+          { id: "VR6AewLTigWG4xSOukaG", name: "Arnold (Crisp Authoritative Male)" },
+        ],
+        supportedModels: [
+          { id: "eleven_multilingual_v2", name: "Eleven Multilingual v2 (High-Fidelity: Hindi, English, Gujarati)", latency: "Standard" },
+          { id: "eleven_turbo_v2_5", name: "Eleven Turbo v2.5 (Fast Low-Latency Multilingual)", latency: "Low (~150ms)" },
+          { id: "eleven_flash_v2_5", name: "Eleven Flash v2.5 (Ultra Low-Latency Multilingual)", latency: "Ultra-Low (~75ms)" },
+          { id: "eleven_v3", name: "Eleven v3 (Expressive Experimental Multilingual)", latency: "Standard" },
+        ],
+        multilingualEvaluation: {
+          english: "Native high-fidelity delivery",
+          hindi: "Fluent native pronunciation with Hindi script & Hinglish",
+          gujarati: "Supported via Multilingual v2 & Turbo v2.5 phonetic synthesis; seamless edge fallback available",
+        },
+      },
+      edgeNeural: {
+        configured: true,
+        voices: {
+          hi: "hi-IN-MadhurNeural",
+          gu: "gu-IN-NiranjanNeural",
+          en: "en-IN-PrabhatNeural",
+          uk: "en-GB-RyanNeural",
+          us: "en-US-ChristopherNeural",
+        },
+      },
+      geminiTts: {
+        configured: Boolean(getGeminiClient()),
+        voices: ["Charon", "Fenrir", "Puck"],
+      },
     });
   });
 

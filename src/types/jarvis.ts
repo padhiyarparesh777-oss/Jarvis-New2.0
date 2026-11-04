@@ -12,7 +12,11 @@ export type ResponseStyle = 'concise' | 'natural' | 'analytical';
 
 export type PersonalityMode = 'tactical' | 'companion' | 'executive' | 'scholar';
 
-export type VoiceEngineMode = 'gemini-tts';
+export type VoiceEngineMode = 'elevenlabs' | 'gemini-tts' | 'edge-neural';
+
+export type AddressPreference = 'adaptive' | 'sir' | 'boss';
+
+export type EmotionMode = 'calm' | 'happy' | 'serious' | 'concerned' | 'excited' | 'reassuring' | 'adaptive';
 
 export type GeminiVoiceName = 'Charon' | 'Fenrir' | 'Puck';
 
@@ -96,6 +100,35 @@ export interface AutomationLog {
   timestamp: number;
 }
 
+export interface AppIntegrationItem {
+  packageName: string;
+  appName: string;
+  aliases: string[];
+  enabled: boolean;
+  isSystemApp?: boolean;
+  lastTested?: number;
+}
+
+export interface LatencyMetrics {
+  sttLatencyMs: number;
+  aiFirstTokenMs: number;
+  ttsFirstAudioMs: number;
+  totalTurnMs: number;
+}
+
+export interface InstalledAppInfo {
+  packageName: string;
+  appName: string;
+  iconBase64?: string;
+  isSystemApp?: boolean;
+}
+
+export interface ContactInfo {
+  id: string;
+  displayName: string;
+  phoneNumber?: string;
+}
+
 export interface JarvisSettings {
   aiBrain: {
     provider: 'auto-hybrid' | 'free-unlimited' | 'gemini';
@@ -109,6 +142,12 @@ export interface JarvisSettings {
     webSearchGrounding: boolean;
     backendUrl: string;
   };
+  personality: {
+    addressPreference: AddressPreference;
+    emotionMode: EmotionMode;
+    expressiveness: number;
+    userName: string;
+  };
   voiceSpeech: {
     language: LanguageMode;
     voiceEngine: VoiceEngineMode;
@@ -118,6 +157,16 @@ export interface JarvisSettings {
     touchToSpeakMode: 'tap-toggle' | 'hold-to-talk';
     voiceOutputEnabled: boolean;
     wakeWordForegroundActive: boolean;
+    elevenLabs: {
+      enabled: boolean;
+      voiceId: string;
+      modelId: string;
+      stability: number;
+      similarityBoost: number;
+      style: number;
+      useSpeakerBoost: boolean;
+      latencyMode: number;
+    };
   };
   phoneControl: {
     enabled: boolean;
@@ -125,6 +174,32 @@ export interface JarvisSettings {
     accessibilityBridgeEnabled: boolean;
     preferNativeIntents: boolean;
     whatsappIntegrationEnabled: boolean;
+  };
+  accessibility: {
+    serviceEnabled: boolean;
+    autoReadScreen: boolean;
+    allowInputText: boolean;
+    allowNavigation: boolean;
+    allowlistPackages: string[];
+  };
+  backgroundAssistant: {
+    enabled: boolean;
+    serviceState: 'running' | 'stopped';
+    persistentNotification: boolean;
+    bootStart: boolean;
+    notificationListener: boolean;
+  };
+  appIntegrations: {
+    enabled: boolean;
+    apps: AppIntegrationItem[];
+  };
+  cloudLocal: {
+    primaryUrl: string;
+    backupUrl: string;
+    activeEndpoint: 'primary' | 'backup';
+    autoFailover: boolean;
+    lastCloudCheck?: number;
+    cloudHealthy: boolean;
   };
   screenVision: {
     autoAnalyzeOnCapture: boolean;
@@ -177,7 +252,9 @@ export type DeviceActionType =
   | 'OPEN_SETTINGS'
   | 'CHECK_DEVICE_STATUS'
   | 'NAVIGATE_SCREEN'
-  | 'WEB_SEARCH_INTENT';
+  | 'WEB_SEARCH_INTENT'
+  | 'LOCK_DEVICE'
+  | 'READ_NOTIFICATIONS';
 
 export interface DeviceActionRequest {
   actionType: DeviceActionType;
@@ -210,10 +287,14 @@ export interface PermissionStatusMap {
   microphone: 'granted' | 'denied' | 'prompt' | 'unsupported';
   camera: 'granted' | 'denied' | 'prompt' | 'unsupported';
   notifications: 'granted' | 'denied' | 'prompt' | 'unsupported';
+  contacts?: 'granted' | 'denied' | 'prompt';
+  phone?: 'granted' | 'denied' | 'prompt';
   screenCapture: 'active' | 'ready' | 'unsupported';
   androidIntents: 'ready' | 'simulated_web';
   accessibilityService: 'authorized' | 'unauthorized';
   wakeLock: 'supported' | 'unsupported';
+  backgroundService?: 'running' | 'stopped';
+  deviceAdmin?: 'active' | 'inactive';
 }
 
 export interface ActiveTimerOrAlarm {

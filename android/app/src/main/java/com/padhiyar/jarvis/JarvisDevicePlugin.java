@@ -3,20 +3,35 @@ package com.padhiyar.jarvis;
 import android.app.ActivityManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.admin.DevicePolicyManager;
+import android.app.role.RoleManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Build;
+import android.os.PowerManager;
 import android.provider.AlarmClock;
+import android.provider.ContactsContract;
+import android.provider.Settings;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.util.List;
+import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 @CapacitorPlugin(name = "JarvisDevice")
 public class JarvisDevicePlugin extends Plugin {
@@ -345,6 +360,445 @@ public class JarvisDevicePlugin extends Plugin {
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Failed to display notification: " + e.getMessage());
+        }
+    }
+
+    // =========================================================================
+    // ACCESSIBILITY & SCREEN NAVIGATION
+    // =========================================================================
+
+    @PluginMethod
+    public void isAccessibilityServiceEnabled(PluginCall call) {
+        boolean active = JarvisAccessibilityService.isRunning();
+        JSObject ret = new JSObject();
+        ret.put("enabled", active);
+        if (active && JarvisAccessibilityService.getInstance() != null) {
+            ret.put("foregroundPackage", JarvisAccessibilityService.getInstance().getForegroundPackage());
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openAccessibilitySettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "Opened Accessibility Settings");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to open accessibility settings: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void readScreenText(PluginCall call) {
+        JarvisAccessibilityService service = JarvisAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("Accessibility Service is not enabled. Please enable JARVIS in Android Accessibility Settings.");
+            return;
+        }
+
+        try {
+            JSONArray nodes = service.dumpVisibleUiNodes();
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("foregroundPackage", service.getForegroundPackage());
+            ret.put("nodeCount", nodes.length());
+            ret.put("nodes", nodes);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to read screen nodes: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void performTap(PluginCall call) {
+        JarvisAccessibilityService service = JarvisAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("Accessibility Service is not enabled.");
+            return;
+        }
+
+        String target = call.getString("target", "");
+        if (target.isEmpty()) {
+            call.reject("Target text or viewId is required for tap.");
+            return;
+        }
+
+        boolean success = service.performTap(target);
+        JSObject ret = new JSObject();
+        ret.put("success", success);
+        ret.put("message", success ? ("Tapped element matching: " + target) : ("No interactive element found matching: " + target));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void performScroll(PluginCall call) {
+        JarvisAccessibilityService service = JarvisAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("Accessibility Service is not enabled.");
+            return;
+        }
+
+        String direction = call.getString("direction", "down");
+        boolean forward = direction.equalsIgnoreCase("down");
+        boolean success = service.performScroll(forward);
+
+        JSObject ret = new JSObject();
+        ret.put("success", success);
+        ret.put("message", success ? ("Scrolled screen " + direction) : "Screen not scrollable");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void performInputText(PluginCall call) {
+        JarvisAccessibilityService service = JarvisAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("Accessibility Service is not enabled.");
+            return;
+        }
+
+        String text = call.getString("text", "");
+        String target = call.getString("target", "");
+
+        boolean success = service.performInputText(text, target);
+        JSObject ret = new JSObject();
+        ret.put("success", success);
+        ret.put("message", success ? "Entered text successfully" : "No editable field found");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void performGlobalAction(PluginCall call) {
+        JarvisAccessibilityService service = JarvisAccessibilityService.getInstance();
+        if (service == null) {
+            call.reject("Accessibility Service is not enabled.");
+            return;
+        }
+
+        String action = call.getString("action", "BACK").toUpperCase();
+        boolean success = false;
+        if ("BACK".equals(action)) {
+            success = service.navigateBack();
+        } else if ("HOME".equals(action)) {
+            success = service.navigateHome();
+        } else if ("NOTIFICATIONS".equals(action)) {
+            success = service.openNotifications();
+        }
+
+        JSObject ret = new JSObject();
+        ret.put("success", success);
+        ret.put("action", action);
+        call.resolve(ret);
+    }
+
+    // =========================================================================
+    // BACKGROUND ASSISTANT FOREGROUND SERVICE
+    // =========================================================================
+
+    @PluginMethod
+    public void isBackgroundServiceRunning(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("running", JarvisBackgroundService.isRunning());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void startBackgroundService(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            Intent intent = new Intent(ctx, JarvisBackgroundService.class);
+            intent.setAction(JarvisBackgroundService.ACTION_START);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(intent);
+            } else {
+                ctx.startService(intent);
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("running", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to start background service: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopBackgroundService(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            Intent intent = new Intent(ctx, JarvisBackgroundService.class);
+            intent.setAction(JarvisBackgroundService.ACTION_STOP);
+            ctx.startService(intent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("running", false);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to stop background service: " + e.getMessage());
+        }
+    }
+
+    // =========================================================================
+    // NOTIFICATION LISTENER
+    // =========================================================================
+
+    @PluginMethod
+    public void isNotificationListenerEnabled(PluginCall call) {
+        Context ctx = getContext();
+        Set<String> enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(ctx);
+        boolean enabled = enabledPackages != null && enabledPackages.contains(ctx.getPackageName());
+
+        JSObject ret = new JSObject();
+        ret.put("enabled", enabled);
+        ret.put("connected", JarvisNotificationListenerService.isConnected());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openNotificationListenerSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to open notification listener settings: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getRecentNotifications(PluginCall call) {
+        JSONArray notifications = JarvisNotificationListenerService.getRecentNotificationsJson();
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("notifications", notifications);
+        call.resolve(ret);
+    }
+
+    // =========================================================================
+    // DEFAULT ASSISTANT & DEVICE ADMIN
+    // =========================================================================
+
+    @PluginMethod
+    public void isDefaultAssistant(PluginCall call) {
+        Context ctx = getContext();
+        boolean isAssistant = false;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                RoleManager rm = (RoleManager) ctx.getSystemService(Context.ROLE_SERVICE);
+                if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_ASSISTANT)) {
+                    isAssistant = rm.isRoleHeld(RoleManager.ROLE_ASSISTANT);
+                }
+            } else {
+                String curAssistant = Settings.Secure.getString(ctx.getContentResolver(), "assistant");
+                if (curAssistant != null && curAssistant.contains(ctx.getPackageName())) {
+                    isAssistant = true;
+                }
+            }
+        } catch (Exception ignored) {}
+
+        JSObject ret = new JSObject();
+        ret.put("isDefault", isAssistant);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestDefaultAssistant(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                RoleManager rm = (RoleManager) ctx.getSystemService(Context.ROLE_SERVICE);
+                if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_ASSISTANT) && !rm.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
+                    Intent roleIntent = rm.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT);
+                    roleIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(roleIntent);
+                    JSObject ret = new JSObject();
+                    ret.put("success", true);
+                    call.resolve(ret);
+                    return;
+                }
+            }
+
+            Intent voiceIntent = new Intent(Settings.ACTION_VOICE_INPUT_SETTINGS);
+            voiceIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(voiceIntent);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to request assistant role: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void isDeviceAdminActive(PluginCall call) {
+        Context ctx = getContext();
+        DevicePolicyManager dpm = (DevicePolicyManager) ctx.getSystemService(Context.DEVICE_POLICY_SERVICE);
+        ComponentName adminComponent = new ComponentName(ctx, JarvisDeviceAdminReceiver.class);
+        boolean active = dpm != null && dpm.isAdminActive(adminComponent);
+
+        JSObject ret = new JSObject();
+        ret.put("active", active);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestDeviceAdmin(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            ComponentName adminComponent = new ComponentName(ctx, JarvisDeviceAdminReceiver.class);
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Enables JARVIS to safely lock the screen upon user command.");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(intent);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to launch device admin prompt: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void lockDevice(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            DevicePolicyManager dpm = (DevicePolicyManager) ctx.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            ComponentName adminComponent = new ComponentName(ctx, JarvisDeviceAdminReceiver.class);
+            if (dpm != null && dpm.isAdminActive(adminComponent)) {
+                dpm.lockNow();
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                ret.put("message", "Screen locked.");
+                call.resolve(ret);
+            } else {
+                call.reject("Device Admin permission is required to lock device screen.");
+            }
+        } catch (Exception e) {
+            call.reject("Failed to lock screen: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void requestIgnoreBatteryOptimizations(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(ctx.getPackageName())) {
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + ctx.getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(intent);
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to request battery exemption: " + e.getMessage());
+        }
+    }
+
+    // =========================================================================
+    // INSTALLED APPS DISCOVERY & CONTACTS
+    // =========================================================================
+
+    @PluginMethod
+    public void getInstalledApps(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            PackageManager pm = ctx.getPackageManager();
+            Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
+            mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+
+            List<ResolveInfo> activities = pm.queryIntentActivities(mainIntent, 0);
+            JSONArray appsArray = new JSONArray();
+
+            for (ResolveInfo ri : activities) {
+                if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
+                    JSONObject appObj = new JSONObject();
+                    appObj.put("packageName", ri.activityInfo.packageName);
+                    CharSequence label = ri.loadLabel(pm);
+                    appObj.put("appName", label != null ? label.toString() : ri.activityInfo.name);
+
+                    boolean isSystem = (ri.activityInfo.applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
+                    appObj.put("isSystemApp", isSystem);
+                    appsArray.put(appObj);
+                }
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("apps", appsArray);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to discover installed apps: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void searchContacts(PluginCall call) {
+        String query = call.getString("query", "").trim();
+        Context ctx = getContext();
+
+        try {
+            JSONArray contactsArray = new JSONArray();
+            Uri uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI;
+            String selection = null;
+            String[] selectionArgs = null;
+
+            if (!query.isEmpty()) {
+                selection = ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?";
+                selectionArgs = new String[] { "%" + query + "%" };
+            }
+
+            Cursor cursor = ctx.getContentResolver().query(
+                uri,
+                new String[] {
+                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                },
+                selection,
+                selectionArgs,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC LIMIT 15"
+            );
+
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    String id = cursor.getString(0);
+                    String name = cursor.getString(1);
+                    String number = cursor.getString(2);
+
+                    JSONObject contact = new JSONObject();
+                    contact.put("id", id != null ? id : "");
+                    contact.put("displayName", name != null ? name : "");
+                    contact.put("phoneNumber", number != null ? number : "");
+                    contactsArray.put(contact);
+                }
+                cursor.close();
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("contacts", contactsArray);
+            call.resolve(ret);
+        } catch (SecurityException se) {
+            call.reject("READ_CONTACTS permission is required to search contacts.");
+        } catch (Exception e) {
+            call.reject("Failed to search contacts: " + e.getMessage());
         }
     }
 }

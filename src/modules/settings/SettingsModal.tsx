@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Cpu,
@@ -23,32 +23,51 @@ import {
   RefreshCw,
   Edit3,
   Server,
+  Download,
+  Phone,
+  Layers,
+  Radio,
+  Lock,
+  Zap,
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import {
   ActiveTimerOrAlarm,
+  AddressPreference,
   AnimationQuality,
+  AppIntegrationItem,
   AutomationLog,
   AutomationRoutine,
   BackendStatus,
   ChatThread,
+  ContactInfo,
   DeviceActionRequest,
   DeviceActionResult,
+  EmotionMode,
   GeminiVoiceName,
+  InstalledAppInfo,
   JarvisSettings,
   LanguageMode,
+  LatencyMetrics,
   MemoryFact,
   PermissionStatusMap,
   PersonalityMode,
   PlannerTask,
   ResponseStyle,
+  VoiceEngineMode,
 } from '../../types/jarvis';
 import {
-  NATIVE_KOTLIN_BLUEPRINT,
+  JarvisNativeDevice,
+  NativeNotificationItem,
+  NativeUiNode,
   requestCameraPermission,
+  requestContactsPermission,
   requestMicrophonePermission,
   requestNotificationPermission,
+  requestPhonePermission,
 } from '../device/deviceControl';
+import { voiceEngine } from '../voice/VoiceEngine';
+import { aiService } from '../ai/aiService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -85,33 +104,36 @@ interface SettingsModalProps {
   onWipeAll: () => void;
   storageStats: { bytesUsed: number; itemCount: number };
   renderTelemetry: { fps: number; nodes: number; filaments: number };
+  latencyMetrics?: LatencyMetrics;
 }
 
-type SettingsTab =
+export type SettingsTab =
   | 'brain'
   | 'voice'
   | 'phone'
-  | 'vision'
-  | 'chat'
+  | 'accessibility'
+  | 'background'
+  | 'comms'
+  | 'apps'
   | 'memory'
-  | 'planner'
-  | 'appearance'
-  | 'notifications'
-  | 'privacy'
-  | 'about';
+  | 'backend'
+  | 'security'
+  | 'diagnostics'
+  | 'appearance';
 
 const TABS: { id: SettingsTab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: 'brain', label: 'AI Brain', icon: Cpu },
-  { id: 'voice', label: 'Voice & Speech', icon: Volume2 },
-  { id: 'phone', label: 'Phone Control', icon: Smartphone },
-  { id: 'vision', label: 'Screen Vision', icon: Eye },
-  { id: 'chat', label: 'Chat & Files', icon: MessageSquare },
-  { id: 'memory', label: 'Memory', icon: Database },
-  { id: 'planner', label: 'Planner & Routines', icon: CalendarCheck },
+  { id: 'brain', label: '1. AI Brain', icon: Cpu },
+  { id: 'voice', label: '2. Voice & Speech', icon: Volume2 },
+  { id: 'phone', label: '3. Phone Control', icon: Smartphone },
+  { id: 'accessibility', label: '4. Accessibility', icon: Eye },
+  { id: 'background', label: '5. Background Assistant', icon: Radio },
+  { id: 'comms', label: '6. Calls & Messages', icon: MessageSquare },
+  { id: 'apps', label: '7. App Integrations', icon: Layers },
+  { id: 'memory', label: '8. Memory & Personality', icon: Database },
+  { id: 'backend', label: '9. Cloud & Local Backend', icon: Server },
+  { id: 'security', label: '10. Security & Permissions', icon: Shield },
+  { id: 'diagnostics', label: '11. Diagnostics', icon: AlertTriangle },
   { id: 'appearance', label: 'Appearance & Orb', icon: Sparkles },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'privacy', label: 'Privacy & Security', icon: Shield },
-  { id: 'about', label: 'About JARVIS AI', icon: Info },
 ];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -149,38 +171,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onWipeAll,
   storageStats,
   renderTelemetry,
+  latencyMetrics,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('brain');
+
+  // Memory inputs
   const [newMemoryText, setNewMemoryText] = useState('');
   const [newMemoryCategory, setNewMemoryCategory] = useState<MemoryFact['category']>('preference');
-
-  // Planner inputs
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskDue, setNewTaskDue] = useState('');
-  const [newTaskCategory, setNewTaskCategory] = useState<PlannerTask['category']>('task');
-
-  // Phone Control test inputs
-  const [testAppName, setTestAppName] = useState('YouTube');
-  const [testAlarmTime, setTestAlarmTime] = useState('07:00');
-  const [testTimerSec, setTestTimerSec] = useState('60');
-  const [testContactPhone, setTestContactPhone] = useState('+919876543210');
-  const [testMessageBody, setTestMessageBody] = useState('Checking in via JARVIS AI.');
-
-  // Screen Vision state
-  const [screenPreviewUrl, setScreenPreviewUrl] = useState<string | null>(null);
-  const [screenBase64, setScreenBase64] = useState<string>('');
-  const [screenMimeType, setScreenMimeType] = useState<string>('image/png');
-  const [screenPrompt, setScreenPrompt] = useState<string>('');
-  const [screenAnalysisResult, setScreenAnalysisResult] = useState<string>('');
-  const [isAnalyzingScreen, setIsAnalyzingScreen] = useState<boolean>(false);
 
   // Thread rename state
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingThreadTitle, setEditingThreadTitle] = useState<string>('');
 
-  const [showKotlinCode, setShowKotlinCode] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
+  // Wipe confirmation
   const [confirmWipe, setConfirmWipe] = useState(false);
+
+  // Voice Test state
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [voiceTestFeedback, setVoiceTestFeedback] = useState<string>('');
+
+  // Contacts search test state
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
+  const [contactSearchResults, setContactSearchResults] = useState<ContactInfo[]>([]);
+  const [isSearchingContacts, setIsSearchingContacts] = useState(false);
+
+  // Accessibility screen test
+  const [accessibleNodes, setAccessibleNodes] = useState<NativeUiNode[]>([]);
+  const [isReadingScreen, setIsReadingScreen] = useState(false);
+  const [screenFeedback, setScreenFeedback] = useState('');
+
+  // Notification reading test
+  const [recentNotifications, setRecentNotifications] = useState<NativeNotificationItem[]>([]);
+  const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
+
+  // App scanner state
+  const [scannedApps, setScannedApps] = useState<Array<{ packageName: string; appName: string; isSystemApp: boolean }>>([]);
+  const [isScanningApps, setIsScanningApps] = useState(false);
+  const [newAliasText, setNewAliasText] = useState('');
+  const [selectedAppForAlias, setSelectedAppForAlias] = useState('');
+
+  // Diagnostics info from voice backend
+  const [ttsDiagnostics, setTtsDiagnostics] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'voice') {
+      aiService.getVoiceDiagnostics(settings).then((data) => setTtsDiagnostics(data));
+    }
+  }, [isOpen, activeTab, settings]);
 
   if (!isOpen) return null;
 
@@ -191,10 +228,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
+  const updatePersonality = (patch: Partial<JarvisSettings['personality']>) => {
+    onUpdateSettings({
+      ...settings,
+      personality: { ...settings.personality, ...patch },
+    });
+  };
+
   const updateVoice = (patch: Partial<JarvisSettings['voiceSpeech']>) => {
     onUpdateSettings({
       ...settings,
       voiceSpeech: { ...settings.voiceSpeech, ...patch },
+    });
+  };
+
+  const updateElevenLabs = (patch: Partial<JarvisSettings['voiceSpeech']['elevenLabs']>) => {
+    onUpdateSettings({
+      ...settings,
+      voiceSpeech: {
+        ...settings.voiceSpeech,
+        elevenLabs: { ...settings.voiceSpeech.elevenLabs, ...patch },
+      },
     });
   };
 
@@ -205,24 +259,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
-  const updateVision = (patch: Partial<JarvisSettings['screenVision']>) => {
+  const updateAccessibility = (patch: Partial<JarvisSettings['accessibility']>) => {
     onUpdateSettings({
       ...settings,
-      screenVision: { ...settings.screenVision, ...patch },
+      accessibility: { ...settings.accessibility, ...patch },
     });
   };
 
-  const updateChat = (patch: Partial<JarvisSettings['chatInterface']>) => {
+  const updateBackground = (patch: Partial<JarvisSettings['backgroundAssistant']>) => {
     onUpdateSettings({
       ...settings,
-      chatInterface: { ...settings.chatInterface, ...patch },
+      backgroundAssistant: { ...settings.backgroundAssistant, ...patch },
     });
   };
 
-  const updateMemory = (patch: Partial<JarvisSettings['memory']>) => {
+  const updateAppIntegrations = (patch: Partial<JarvisSettings['appIntegrations']>) => {
     onUpdateSettings({
       ...settings,
-      memory: { ...settings.memory, ...patch },
+      appIntegrations: { ...settings.appIntegrations, ...patch },
+    });
+  };
+
+  const updateCloudLocal = (patch: Partial<JarvisSettings['cloudLocal']>) => {
+    onUpdateSettings({
+      ...settings,
+      cloudLocal: { ...settings.cloudLocal, ...patch },
     });
   };
 
@@ -233,116 +294,131 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     });
   };
 
-  const updateNotifications = (patch: Partial<JarvisSettings['notifications']>) => {
-    onUpdateSettings({
-      ...settings,
-      notifications: { ...settings.notifications, ...patch },
-    });
-  };
+  const handleTestVoice = async () => {
+    setIsTestingVoice(true);
+    setVoiceTestFeedback('Synthesizing multilingual test phrase...');
+    const testText =
+      settings.voiceSpeech.language === 'gu'
+        ? 'નમસ્તે સર. હું જાર્વિસ છું, તમારી વ્યક્તિગત સહાયક સેવા કાર્યરત છે.'
+        : settings.voiceSpeech.language === 'hi'
+        ? 'नमस्ते सर. मैं जार्विस हूँ, आपकी सेवा में हमेशा तैयार.'
+        : settings.voiceSpeech.language === 'hinglish'
+        ? 'Good day Sir. Main JARVIS hoon, all systems ready.'
+        : 'Good day, Sir. I am JARVIS, fully operational and at your command.';
 
-  const updatePrivacy = (patch: Partial<JarvisSettings['privacy']>) => {
-    onUpdateSettings({
-      ...settings,
-      privacy: { ...settings.privacy, ...patch },
-    });
-  };
-
-  const handleCaptureLiveScreen = async () => {
-    setScreenAnalysisResult('');
     try {
-      if (navigator.mediaDevices && 'getDisplayMedia' in navigator.mediaDevices) {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-        });
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        await video.play();
+      await voiceEngine.speakFullText(
+        testText,
+        settings,
+        {
+          onStart: () => setVoiceTestFeedback('Playing speech output...'),
+          onEnd: () => {
+            setIsTestingVoice(false);
+            setVoiceTestFeedback('Voice playback completed successfully.');
+          },
+          onError: (err) => {
+            setIsTestingVoice(false);
+            setVoiceTestFeedback(`Playback failed: ${err.message}`);
+          },
+        },
+        settings.personality.emotionMode
+      );
+    } catch (e) {
+      setIsTestingVoice(false);
+      setVoiceTestFeedback(e instanceof Error ? e.message : 'Voice test failed');
+    }
+  };
 
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL('image/png');
-          const b64 = dataUrl.split(',')[1] || '';
-          setScreenPreviewUrl(dataUrl);
-          setScreenBase64(b64);
-          setScreenMimeType('image/png');
-
-          if (settings.screenVision.autoAnalyzeOnCapture && b64) {
-            setIsAnalyzingScreen(true);
-            try {
-              const res = await onAnalyzeScreen(b64, 'image/png', screenPrompt);
-              setScreenAnalysisResult(res);
-            } catch (err) {
-              setScreenAnalysisResult(
-                err instanceof Error ? err.message : 'Screen analysis failed.'
-              );
-            } finally {
-              setIsAnalyzingScreen(false);
+  const handleScanInstalledApps = async () => {
+    setIsScanningApps(true);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const res = await JarvisNativeDevice.getInstalledApps();
+        if (res.apps) {
+          setScannedApps(res.apps);
+          // Merge newly discovered apps into settings
+          const currentApps = [...settings.appIntegrations.apps];
+          for (const discovered of res.apps) {
+            if (!currentApps.some((a) => a.packageName === discovered.packageName)) {
+              currentApps.push({
+                packageName: discovered.packageName,
+                appName: discovered.appName,
+                aliases: [discovered.appName.toLowerCase()],
+                enabled: true,
+                isSystemApp: discovered.isSystemApp,
+              });
             }
           }
+          updateAppIntegrations({ apps: currentApps });
         }
-        stream.getTracks().forEach((t) => t.stop());
       } else {
-        setScreenAnalysisResult(
-          'Live display capture requires Android MediaProjection or a desktop browser. Use "Upload Screenshot" below to analyze any screen image.'
+        setScannedApps(
+          settings.appIntegrations.apps.map((a) => ({
+            packageName: a.packageName,
+            appName: a.appName,
+            isSystemApp: false,
+          }))
         );
       }
     } catch {
-      setScreenAnalysisResult('Screen capture was cancelled or denied by the user.');
-    }
-  };
-
-  const handleUploadScreenshotFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = String(reader.result || '');
-      const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-      const mime = file.type || 'image/png';
-      setScreenPreviewUrl(dataUrl);
-      setScreenBase64(b64);
-      setScreenMimeType(mime);
-      setScreenAnalysisResult('');
-
-      if (settings.screenVision.autoAnalyzeOnCapture && b64) {
-        setIsAnalyzingScreen(true);
-        try {
-          const res = await onAnalyzeScreen(b64, mime, screenPrompt);
-          setScreenAnalysisResult(res);
-        } catch (err) {
-          setScreenAnalysisResult(
-            err instanceof Error ? err.message : 'Screen analysis failed.'
-          );
-        } finally {
-          setIsAnalyzingScreen(false);
-        }
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const handleRunScreenAnalysis = async () => {
-    if (!screenBase64) return;
-    setIsAnalyzingScreen(true);
-    try {
-      const res = await onAnalyzeScreen(screenBase64, screenMimeType, screenPrompt);
-      setScreenAnalysisResult(res);
-    } catch (err) {
-      setScreenAnalysisResult(err instanceof Error ? err.message : 'Screen analysis failed.');
+      // Ignore
     } finally {
-      setIsAnalyzingScreen(false);
+      setIsScanningApps(false);
     }
   };
 
-  const handleCopyKotlin = () => {
-    navigator.clipboard?.writeText(NATIVE_KOTLIN_BLUEPRINT);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+  const handleSearchContacts = async () => {
+    setIsSearchingContacts(true);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const res = await JarvisNativeDevice.searchContacts({ query: contactSearchQuery });
+        setContactSearchResults(res.contacts || []);
+      } else {
+        setContactSearchResults([
+          { id: '1', displayName: 'Simulated Contact (Web)', phoneNumber: '+919876543210' },
+        ]);
+      }
+    } catch {
+      setContactSearchResults([]);
+    } finally {
+      setIsSearchingContacts(false);
+    }
+  };
+
+  const handleTestReadScreen = async () => {
+    setIsReadingScreen(true);
+    setScreenFeedback('Inspecting visible UI controls...');
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const res = await JarvisNativeDevice.readScreenText();
+        setAccessibleNodes(res.nodes || []);
+        setScreenFeedback(`Captured ${res.nodeCount || 0} visible controls in ${res.foregroundPackage || 'app'}`);
+      } else {
+        setScreenFeedback('Simulated Accessibility: Running on web runtime. Native Android required for live screen node inspection.');
+      }
+    } catch (e) {
+      setScreenFeedback(e instanceof Error ? e.message : 'Could not read screen');
+    } finally {
+      setIsReadingScreen(false);
+    }
+  };
+
+  const handleFetchRecentNotifications = async () => {
+    setIsLoadingNotifs(true);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const res = await JarvisNativeDevice.getRecentNotifications();
+        setRecentNotifications(res.notifications || []);
+      } else {
+        setRecentNotifications([
+          { packageName: 'com.whatsapp', title: 'Work Group', text: 'Meeting starts at 10 AM', postTime: Date.now() - 60000 },
+        ]);
+      }
+    } catch {
+      setRecentNotifications([]);
+    } finally {
+      setIsLoadingNotifs(false);
+    }
   };
 
   return (
@@ -353,14 +429,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       aria-label="JARVIS AI Settings"
     >
       <div className="relative w-full max-w-2xl h-full bg-[#050505] border-l border-[#FFC928]/25 flex flex-col text-white overflow-hidden">
-        {/* Top Modal Header */}
+        {/* Top Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#FFC928]/15 bg-[#080808]">
           <div>
             <h2 className="font-display text-sm tracking-[0.22em] text-[#FFC928] uppercase">
               System Configuration
             </h2>
             <p className="text-xs text-white/50 mt-0.5">
-              JARVIS AI · Architecture, Permissions & Neural Core Controls
+              JARVIS AI · Personal Android Assistant Architecture & Controls
             </p>
           </div>
           <button
@@ -373,7 +449,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        {/* Horizontal Scrollable Category Navigation */}
+        {/* Tab Navigation */}
         <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#FFC928]/15 bg-[#070707] overflow-x-auto shrink-0">
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -396,15 +472,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           })}
         </div>
 
-        {/* Tab Body */}
+        {/* Tab Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* ========================================================================= */}
           {/* 1. AI BRAIN */}
+          {/* ========================================================================= */}
           {activeTab === 'brain' && (
             <div className="space-y-6">
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 flex items-center justify-between gap-4">
                 <div>
                   <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                    AI Core Status
+                    AI Brain Architecture
                   </div>
                   <div className="text-sm font-semibold mt-0.5 flex items-center gap-2">
                     <span
@@ -414,14 +492,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     />
                     <span>
                       {settings.aiBrain.provider === 'free-unlimited'
-                        ? 'Free Unlimited AI Engine Active'
+                        ? 'Free Unlimited AI Engine'
                         : settings.aiBrain.provider === 'auto-hybrid'
-                        ? 'Auto-Hybrid (Gemini + Free Unlimited Fallback)'
-                        : 'Google Gemini API Connected'}
+                        ? 'Auto-Hybrid (Google Gemini + Free Backup)'
+                        : 'Google Gemini Strict API Mode'}
                     </span>
                   </div>
                   <div className="text-xs text-white/55 mt-1">
-                    {backendStatus?.message || 'Checking server-side AI bridge...'}
+                    {backendStatus?.message || 'Connecting to central intelligence core...'}
                   </div>
                 </div>
                 <button
@@ -434,121 +512,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
               </div>
 
-              {/* Backend URL & Runtime Connection */}
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-[#FFC928] flex items-center gap-2">
-                    <Server className="w-4 h-4 text-[#FFC928]" />
-                    <span>Backend Server Endpoint</span>
-                  </label>
-                  <span
-                    className={`text-[10px] px-2.5 py-0.5 rounded-full border font-medium ${
-                      Capacitor.isNativePlatform()
-                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-400'
-                        : 'bg-blue-950/60 border-blue-500/40 text-blue-400'
-                    }`}
-                  >
-                    {Capacitor.isNativePlatform() ? 'Android Native (APK)' : 'Web Browser'}
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-white/60">
-                  Configure the backend server URL. When running as an APK, point to your local Termux server or hosted Render cloud backend.
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={settings.aiBrain.backendUrl || ''}
-                      placeholder={
-                        Capacitor.isNativePlatform()
-                          ? 'http://127.0.0.1:3000 (Default)'
-                          : 'Same-Origin / Relative (/api)'
-                      }
-                      onChange={(e) => updateBrain({ backendUrl: e.target.value })}
-                      className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFC928] font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={onRefreshBackend}
-                      className="px-3 py-2 min-h-[38px] rounded-lg bg-[#FFC928] text-black font-semibold text-xs hover:bg-[#FFDF70] transition-colors shrink-0 flex items-center gap-1.5"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Test</span>
-                    </button>
-                  </div>
-
-                  {/* Quick Presets */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <span className="text-[10px] uppercase tracking-wider text-[#C5A059]">Presets:</span>
-                    <button
-                      type="button"
-                      onClick={() => updateBrain({ backendUrl: 'http://127.0.0.1:3000' })}
-                      className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-[11px] text-white/80 border border-white/10 transition-colors"
-                    >
-                      Termux Localhost (127.0.0.1:3000)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateBrain({ backendUrl: 'https://jarvis-ai-backend.onrender.com' })}
-                      className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-[11px] text-white/80 border border-white/10 transition-colors"
-                    >
-                      Render Cloud Default
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateBrain({ backendUrl: '' })}
-                      className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-[11px] text-white/80 border border-white/10 transition-colors"
-                    >
-                      Same-Origin (Web)
-                    </button>
-                  </div>
-
-                  {backendStatus?.latencyMs !== undefined && (
-                    <div className="text-[11px] text-emerald-400 flex items-center gap-1.5 pt-1">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Connected · Latency: {backendStatus.latencyMs}ms</span>
-                      {backendStatus.resolvedUrl && (
-                        <span className="text-white/40">({backendStatus.resolvedUrl})</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
-                <label className="block text-xs text-[#C5A059]">
-                  AI Provider Engine (Zero Rate-Limit Protection)
-                </label>
+                <label className="block text-xs text-[#C5A059]">Intelligence Provider Mode</label>
                 <div className="grid grid-cols-1 gap-2">
-                  {(
-                    [
-                      {
-                        id: 'auto-hybrid',
-                        title: 'Auto-Hybrid (Gemini + Free Unlimited Fallback) — Recommended',
-                        desc: 'Uses Google Gemini first; if API quota/rate limit is hit, automatically switches to the Free Unlimited AI engine with zero interruption.',
-                      },
-                      {
-                        id: 'free-unlimited',
-                        title: '100% Free Unlimited AI Mode (No Quota / No API Key Needed)',
-                        desc: 'Directly uses the free cloud AI engine + local Android intent parser. Never hits Gemini API rate limits.',
-                      },
-                      {
-                        id: 'gemini',
-                        title: 'Google Gemini Strict Mode',
-                        desc: 'Uses only your configured GEMINI_API_KEY without fallback.',
-                      },
-                    ] as {
-                      id: JarvisSettings['aiBrain']['provider'];
-                      title: string;
-                      desc: string;
-                    }[]
-                  ).map((mode) => (
+                  {[
+                    {
+                      id: 'auto-hybrid',
+                      title: 'Auto-Hybrid (Google Gemini + Free Backup) — Recommended',
+                      desc: 'Streaming Gemini tokens with automatic fallback if rate limits occur.',
+                    },
+                    {
+                      id: 'gemini',
+                      title: 'Google Gemini Dedicated Mode',
+                      desc: 'Direct execution on gemini-3.8-flash and gemini-3.1-flash-lite.',
+                    },
+                    {
+                      id: 'free-unlimited',
+                      title: 'Free Unlimited AI Mode (Zero Rate Limits)',
+                      desc: 'OpenAI-compatible serverless neural core for unthrottled conversation.',
+                    },
+                  ].map((mode) => (
                     <button
                       key={mode.id}
                       type="button"
-                      onClick={() => updateBrain({ provider: mode.id })}
+                      onClick={() => updateBrain({ provider: mode.id as JarvisSettings['aiBrain']['provider'] })}
                       className={`p-3 rounded-xl border text-left transition-colors ${
                         settings.aiBrain.provider === mode.id
                           ? 'bg-[#FFC928]/15 border-[#FFC928] text-white'
@@ -564,34 +551,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <label className="block text-xs text-[#C5A059]">Primary AI Model</label>
+                  <label className="block text-xs text-[#C5A059]">Primary Gemini Model</label>
                   <select
                     value={settings.aiBrain.model}
-                    onChange={(e) =>
-                      updateBrain({
-                        model: e.target.value as JarvisSettings['aiBrain']['model'],
-                      })
-                    }
+                    onChange={(e) => updateBrain({ model: e.target.value as JarvisSettings['aiBrain']['model'] })}
                     className="w-full bg-black border border-white/15 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFC928]"
                   >
-                    <option value="gemini-3.8-flash">
-                      gemini-3.8-flash (High-Intelligence Multimodal)
-                    </option>
-                    <option value="gemini-3.1-flash-lite">
-                      gemini-3.1-flash-lite (Ultra-Fast Low Latency)
-                    </option>
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (High Intelligence)</option>
+                    <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Ultra-Low Latency)</option>
                   </select>
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <label className="block text-xs text-[#C5A059]">Automatic Fallback Model</label>
+                  <label className="block text-xs text-[#C5A059]">Fallback Model</label>
                   <select
                     value={settings.aiBrain.fallbackModel}
-                    onChange={(e) =>
-                      updateBrain({
-                        fallbackModel: e.target.value as JarvisSettings['aiBrain']['fallbackModel'],
-                      })
-                    }
+                    onChange={(e) => updateBrain({ fallbackModel: e.target.value as JarvisSettings['aiBrain']['fallbackModel'] })}
                     className="w-full bg-black border border-white/15 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFC928]"
                   >
                     <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
@@ -600,66 +575,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
-                <label className="block text-xs text-[#C5A059]">Assistant Personality</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {(
-                    [
-                      { id: 'executive', label: 'Executive' },
-                      { id: 'tactical', label: 'Tactical' },
-                      { id: 'companion', label: 'Companion' },
-                      { id: 'scholar', label: 'Scholar' },
-                    ] as { id: PersonalityMode; label: string }[]
-                  ).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => updateBrain({ personality: p.id })}
-                      className={`py-2.5 px-3 rounded-lg text-xs font-medium border transition-colors ${
-                        settings.aiBrain.personality === p.id
-                          ? 'bg-[#FFC928]/15 border-[#FFC928] text-[#FFC928]'
-                          : 'bg-black border-white/10 text-white/70 hover:text-white'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
-                <label className="block text-xs text-[#C5A059]">Response Style</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(
-                    [
-                      { id: 'concise', label: 'Concise' },
-                      { id: 'natural', label: 'Natural' },
-                      { id: 'analytical', label: 'Analytical' },
-                    ] as { id: ResponseStyle; label: string }[]
-                  ).map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => updateBrain({ responseStyle: s.id })}
-                      className={`py-2.5 px-3 rounded-lg text-xs font-medium border transition-colors ${
-                        settings.aiBrain.responseStyle === s.id
-                          ? 'bg-[#FFC928]/15 border-[#FFC928] text-[#FFC928]'
-                          : 'bg-black border-white/10 text-white/70 hover:text-white'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span className="text-[#C5A059]">Reasoning Depth (Thinking)</span>
-                    <span className="text-[#FFC928] font-mono-tabular">
-                      {settings.aiBrain.thinkingLevel}
-                    </span>
+                    <span className="text-[#C5A059]">Reasoning Depth</span>
+                    <span className="text-[#FFC928]">{settings.aiBrain.thinkingLevel}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     {(['LOW', 'MEDIUM', 'HIGH'] as const).map((lvl) => (
@@ -681,10 +601,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span className="text-[#C5A059]">Creativity (Temperature)</span>
-                    <span className="text-[#FFC928] font-mono-tabular">
-                      {settings.aiBrain.temperature.toFixed(1)}
-                    </span>
+                    <span className="text-[#C5A059]">Creativity / Temperature</span>
+                    <span className="text-[#FFC928]">{settings.aiBrain.temperature.toFixed(1)}</span>
                   </div>
                   <input
                     type="range"
@@ -701,12 +619,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-3">
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">
-                      Live Google Search Grounding
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      Ground answers in real-time web information with verified source links
-                    </div>
+                    <div className="text-xs font-medium text-white">Live Web Search Grounding</div>
+                    <div className="text-[11px] text-white/50">Ground AI answers in live factual sources</div>
                   </div>
                   <input
                     type="checkbox"
@@ -719,9 +633,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
                     <div className="text-xs font-medium text-white">Real-Time Token Streaming</div>
-                    <div className="text-[11px] text-white/50">
-                      Stream AI responses progressively as they are generated
-                    </div>
+                    <div className="text-[11px] text-white/50">Stream Gemini tokens progressively as generated</div>
                   </div>
                   <input
                     type="checkbox"
@@ -734,132 +646,203 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
+          {/* ========================================================================= */}
           {/* 2. VOICE & SPEECH */}
+          {/* ========================================================================= */}
           {activeTab === 'voice' && (
             <div className="space-y-6">
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
-                <label className="block text-xs text-[#C5A059]">
-                  Multilingual Speech & Conversation Language
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(
-                    [
-                      { id: 'auto', label: 'Auto-Detect (EN / HI / Hinglish / GU)' },
-                      { id: 'en', label: 'English (India / US)' },
-                      { id: 'hi', label: 'Hindi (हिन्दी)' },
-                      { id: 'hinglish', label: 'Hinglish (Conversational Blend)' },
-                      { id: 'gu', label: 'Gujarati (ગુજરાતી)' },
-                    ] as { id: LanguageMode; label: string }[]
-                  ).map((lang) => (
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
+                <label className="block text-xs text-[#C5A059]">Primary TTS Speech Engine</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'elevenlabs', title: 'ElevenLabs', desc: 'Consistent male voice across languages' },
+                    { id: 'edge-neural', title: 'Edge Neural Male', desc: 'Zero quota high-fidelity neural voices' },
+                    { id: 'gemini-tts', title: 'Gemini TTS', desc: 'Charon / Fenrir / Puck prebuilt voices' },
+                  ].map((engine) => (
                     <button
-                      key={lang.id}
+                      key={engine.id}
                       type="button"
-                      onClick={() => updateVoice({ language: lang.id })}
-                      className={`py-2.5 px-3 rounded-lg text-xs font-medium border text-left transition-colors ${
-                        settings.voiceSpeech.language === lang.id
-                          ? 'bg-[#FFC928]/15 border-[#FFC928] text-[#FFC928]'
-                          : 'bg-black border-white/10 text-white/70 hover:text-white'
+                      onClick={() => updateVoice({ voiceEngine: engine.id as VoiceEngineMode })}
+                      className={`p-3 rounded-xl border text-left transition-colors ${
+                        settings.voiceSpeech.voiceEngine === engine.id
+                          ? 'bg-[#FFC928]/15 border-[#FFC928] text-white'
+                          : 'bg-black border-white/10 text-white/70'
                       }`}
                     >
-                      {lang.label}
+                      <div className="text-xs font-semibold text-[#FFC928]">{engine.title}</div>
+                      <div className="text-[10px] text-white/50 mt-0.5">{engine.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* ElevenLabs Configuration Card */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-[#FFC928]" />
+                    <span>ElevenLabs Configuration</span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs">
+                    <span className="text-white/70">Enable ElevenLabs</span>
+                    <input
+                      type="checkbox"
+                      checked={settings.voiceSpeech.elevenLabs.enabled}
+                      onChange={(e) => updateElevenLabs({ enabled: e.target.checked })}
+                      className="w-4 h-4 accent-[#FFC928]"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-[#C5A059] mb-1">Consistent Male Voice ID</label>
+                    <input
+                      type="text"
+                      value={settings.voiceSpeech.elevenLabs.voiceId}
+                      onChange={(e) => updateElevenLabs({ voiceId: e.target.value.trim() })}
+                      placeholder="e.g. pNInz6obpgDQGcFmaJgB"
+                      className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white font-mono"
+                    />
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {[
+                        { name: 'Adam (Primary)', id: 'pNInz6obpgDQGcFmaJgB' },
+                        { name: 'George (British)', id: 'JBFqnCBsd6RMkjVDRZzb' },
+                        { name: 'Antoni', id: 'ErXwobaYiN019PkySvjV' },
+                        { name: 'Josh', id: 'TxGEqnHWrfWFTfGW9XjX' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => updateElevenLabs({ voiceId: preset.id })}
+                          className="px-2 py-0.5 text-[10px] rounded bg-white/5 hover:bg-white/10 text-white/70 border border-white/10"
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-[#C5A059] mb-1">ElevenLabs Multilingual Model</label>
+                    <select
+                      value={settings.voiceSpeech.elevenLabs.modelId}
+                      onChange={(e) => updateElevenLabs({ modelId: e.target.value })}
+                      className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
+                    >
+                      <option value="eleven_multilingual_v2">Eleven Multilingual v2 (High-Fidelity Hindi / English / Gujarati)</option>
+                      <option value="eleven_turbo_v2_5">Eleven Turbo v2.5 (Low Latency ~150ms)</option>
+                      <option value="eleven_flash_v2_5">Eleven Flash v2.5 (Ultra Low Latency ~75ms)</option>
+                      <option value="eleven_v3">Eleven v3 (Expressive Experimental)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-[#C5A059]">Stability</span>
+                      <span className="text-[#FFC928]">{settings.voiceSpeech.elevenLabs.stability.toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1.0"
+                      step="0.05"
+                      value={settings.voiceSpeech.elevenLabs.stability}
+                      onChange={(e) => updateElevenLabs({ stability: parseFloat(e.target.value) })}
+                      className="w-full accent-[#FFC928]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-[#C5A059]">Similarity Boost</span>
+                      <span className="text-[#FFC928]">{settings.voiceSpeech.elevenLabs.similarityBoost.toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1.0"
+                      step="0.05"
+                      value={settings.voiceSpeech.elevenLabs.similarityBoost}
+                      onChange={(e) => updateElevenLabs({ similarityBoost: parseFloat(e.target.value) })}
+                      className="w-full accent-[#FFC928]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-[#C5A059]">Style / Emotion</span>
+                      <span className="text-[#FFC928]">{settings.voiceSpeech.elevenLabs.style.toFixed(2)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={settings.voiceSpeech.elevenLabs.style}
+                      onChange={(e) => updateElevenLabs({ style: parseFloat(e.target.value) })}
+                      className="w-full accent-[#FFC928]"
+                    />
+                  </div>
+                </div>
+
+                {/* Test Voice Button */}
+                <div className="pt-2 flex items-center justify-between border-t border-white/10">
+                  <button
+                    type="button"
+                    disabled={isTestingVoice}
+                    onClick={handleTestVoice}
+                    className="px-4 py-2 rounded-lg bg-[#FFC928] text-black font-semibold text-xs inline-flex items-center gap-2 hover:bg-[#e6b424] transition-colors disabled:opacity-50"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-black" />
+                    <span>{isTestingVoice ? 'Playing...' : 'Test Voice Synthesis'}</span>
+                  </button>
+                  <span className="text-xs text-white/50">{voiceTestFeedback}</span>
+                </div>
+              </div>
+
+              {/* Language Selection & Speech Speed */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <label className="block text-xs text-[#C5A059]">Voice Synthesis Engine</label>
+                  <label className="block text-xs text-[#C5A059]">Spoken Output Language</label>
                   <select
-                    value={settings.voiceSpeech.voiceEngine}
-                    onChange={(e) =>
-                      updateVoice({
-                        voiceEngine: e.target.value as JarvisSettings['voiceSpeech']['voiceEngine'],
-                      })
-                    }
-                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFC928]"
+                    value={settings.voiceSpeech.language}
+                    onChange={(e) => updateVoice({ language: e.target.value as LanguageMode })}
+                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-2.5 text-xs text-white"
                   >
-                    <option value="gemini-tts">
-                      Free Male Neural Voice Engine (Zero Quota Limits)
-                    </option>
+                    <option value="auto">Auto-Detect & Multilingual Code-Switching</option>
+                    <option value="en">English (Articulate British/Indian)</option>
+                    <option value="hi">Hindi (हिन्दी)</option>
+                    <option value="hinglish">Hinglish (Natural Blend)</option>
+                    <option value="gu">Gujarati (ગુજરાતી)</option>
                   </select>
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <label className="block text-xs text-[#C5A059]">Male Neural Voice</label>
-                  <select
-                    value={settings.voiceSpeech.geminiVoice}
-                    onChange={(e) =>
-                      updateVoice({ geminiVoice: e.target.value as GeminiVoiceName })
-                    }
-                    className="w-full bg-black border border-white/15 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#FFC928]"
-                  >
-                    <option value="Charon">
-                      Charon — Indian / Hinglish & Hindi Male Neural (Prabhat / Madhur)
-                    </option>
-                    <option value="Fenrir">
-                      Fenrir — Deep British JARVIS Male Neural (Ryan / Brian)
-                    </option>
-                    <option value="Puck">
-                      Puck — Deep American Male Neural (Christopher)
-                    </option>
-                  </select>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#C5A059]">Speech Speed</span>
+                    <span className="text-[#FFC928]">{settings.voiceSpeech.speechSpeed.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.75"
+                    max="1.35"
+                    step="0.05"
+                    value={settings.voiceSpeech.speechSpeed}
+                    onChange={(e) => updateVoice({ speechSpeed: parseFloat(e.target.value) })}
+                    className="w-full accent-[#FFC928]"
+                  />
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[#C5A059]">Speech Playback Rate</span>
-                  <span className="text-[#FFC928] font-mono-tabular">
-                    {settings.voiceSpeech.speechSpeed.toFixed(2)}x
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.75"
-                  max="1.35"
-                  step="0.05"
-                  value={settings.voiceSpeech.speechSpeed}
-                  onChange={(e) => updateVoice({ speechSpeed: parseFloat(e.target.value) })}
-                  className="w-full accent-[#FFC928]"
-                />
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                <label className="block text-xs text-[#C5A059]">Orb Touch Interaction Mode</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => updateVoice({ touchToSpeakMode: 'tap-toggle' })}
-                    className={`py-2.5 px-3 rounded-lg text-xs border ${
-                      settings.voiceSpeech.touchToSpeakMode === 'tap-toggle'
-                        ? 'bg-[#FFC928]/15 border-[#FFC928] text-[#FFC928]'
-                        : 'bg-black border-white/10 text-white/70'
-                    }`}
-                  >
-                    Tap Orb to Start / Stop
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateVoice({ touchToSpeakMode: 'hold-to-talk' })}
-                    className={`py-2.5 px-3 rounded-lg text-xs border ${
-                      settings.voiceSpeech.touchToSpeakMode === 'hold-to-talk'
-                        ? 'bg-[#FFC928]/15 border-[#FFC928] text-[#FFC928]'
-                        : 'bg-black border-white/10 text-white/70'
-                    }`}
-                  >
-                    Hold Orb to Talk
-                  </button>
-                </div>
-              </div>
-
+              {/* Toggles */}
               <div className="space-y-3">
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">Spoken Voice Output</div>
-                    <div className="text-[11px] text-white/50">
-                      Speak JARVIS AI responses aloud and sync the 3D golden orb to word amplitude
-                    </div>
+                    <div className="text-xs font-medium text-white">Voice Speech Output</div>
+                    <div className="text-[11px] text-white/50">Speak responses aloud and react in the 3D golden orb</div>
                   </div>
                   <input
                     type="checkbox"
@@ -871,12 +854,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">
-                      Continuous Follow-Up Listening
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      Automatically listen for follow-up questions after JARVIS finishes speaking
-                    </div>
+                    <div className="text-xs font-medium text-white">Continuous Follow-Up Listening</div>
+                    <div className="text-[11px] text-white/50">Automatically resume listening after speech ends</div>
                   </div>
                   <input
                     type="checkbox"
@@ -889,96 +868,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* 3. PHONE CONTROL & PERMISSIONS */}
+          {/* ========================================================================= */}
+          {/* 3. PHONE CONTROL */}
+          {/* ========================================================================= */}
           {activeTab === 'phone' && (
             <div className="space-y-6">
-              {/* Live Runtime Permission Matrix */}
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-wider text-[#C5A059]">
-                    Live Android / Web Permission Matrix
-                  </span>
-                  <button
-                    type="button"
-                    onClick={onRefreshPermissions}
-                    className="text-xs text-[#FFC928] hover:underline inline-flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Refresh</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-3 rounded-lg bg-black border border-white/10 flex items-center justify-between">
-                    <span>Microphone (Voice)</span>
-                    {permissions.microphone === 'granted' ? (
-                      <span className="text-[#FFC928] font-medium">Granted</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await requestMicrophonePermission();
-                          onRefreshPermissions();
-                        }}
-                        className="px-2.5 py-1 rounded bg-[#FFC928] text-black font-semibold"
-                      >
-                        Grant
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-black border border-white/10 flex items-center justify-between">
-                    <span>Camera (Vision)</span>
-                    {permissions.camera === 'granted' ? (
-                      <span className="text-[#FFC928] font-medium">Granted</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await requestCameraPermission();
-                          onRefreshPermissions();
-                        }}
-                        className="px-2.5 py-1 rounded bg-[#FFC928] text-black font-semibold"
-                      >
-                        Grant
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-black border border-white/10 flex items-center justify-between">
-                    <span>Notifications (Reminders)</span>
-                    {permissions.notifications === 'granted' ? (
-                      <span className="text-[#FFC928] font-medium">Granted</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await requestNotificationPermission();
-                          onRefreshPermissions();
-                        }}
-                        className="px-2.5 py-1 rounded bg-[#FFC928] text-black font-semibold"
-                      >
-                        Grant
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-black border border-white/10 flex items-center justify-between">
-                    <span>Android Intent Bridge</span>
-                    <span className="text-[#C5A059] font-mono-tabular">
-                      {permissions.androidIntents}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               <div className="space-y-3">
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">Enable Phone Control Layer</div>
-                    <div className="text-[11px] text-white/50">
-                      Allow JARVIS to prepare Android Intents for apps, alarms, timers, calls, and messages
-                    </div>
+                    <div className="text-xs font-medium text-white">Enable Phone Control Engine</div>
+                    <div className="text-[11px] text-white/50">Allow JARVIS to execute device actions, alarms, apps, and navigation</div>
                   </div>
                   <input
                     type="checkbox"
@@ -990,12 +889,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">
-                      Require Explicit Confirmation for Sensitive Actions
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      Always ask before placing calls, sending SMS/WhatsApp, or launching external packages
-                    </div>
+                    <div className="text-xs font-medium text-white">Confirm Sensitive Actions</div>
+                    <div className="text-[11px] text-white/50">Require explicit confirmation for phone calls, SMS, WhatsApp, and device lock</div>
                   </div>
                   <input
                     type="checkbox"
@@ -1007,225 +902,277 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">
-                      Authorize Accessibility Gesture Bridge
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      User-authorized scroll/navigation gesture dispatch (no background harvesting)
-                    </div>
+                    <div className="text-xs font-medium text-white">Prefer Native Android Intents</div>
+                    <div className="text-[11px] text-white/50">Directly dispatch system intents instead of simulated web fallbacks</div>
                   </div>
                   <input
                     type="checkbox"
-                    checked={settings.phoneControl.accessibilityBridgeEnabled}
-                    onChange={(e) => updatePhone({ accessibilityBridgeEnabled: e.target.checked })}
+                    checked={settings.phoneControl.preferNativeIntents}
+                    onChange={(e) => updatePhone({ preferNativeIntents: e.target.checked })}
                     className="w-4 h-4 accent-[#FFC928]"
                   />
                 </label>
               </div>
 
-              {/* Interactive Action Dispatchers */}
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-4">
-                <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                  Test Android Intent & Action Dispatchers
+              {/* Action Policy Overview */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-2">
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold">
+                  Action Security Policy
                 </div>
+                <div className="text-xs text-white/70 space-y-1">
+                  <div><span className="text-[#FFC928] font-semibold">Normal Actions:</span> Open apps, calculate, check device status, scroll, read screen (executes directly upon permitted voice command).</div>
+                  <div><span className="text-[#FFC928] font-semibold">Sensitive Actions:</span> Placing calls, sending SMS, deleting data, lock device (requires explicit modal confirmation).</div>
+                  <div><span className="text-[#FFC928] font-semibold">Restricted:</span> Never captures passwords, never automates banking transactions or payment confirmations.</div>
+                </div>
+              </div>
+            </div>
+          )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text"
-                      value={testAppName}
-                      onChange={(e) => setTestAppName(e.target.value)}
-                      className="flex-1 min-w-0 bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                      placeholder="App name"
+          {/* ========================================================================= */}
+          {/* 4. ACCESSIBILITY */}
+          {/* ========================================================================= */}
+          {activeTab === 'accessibility' && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">Accessibility Service Status</div>
+                  <div className="text-sm font-semibold mt-0.5 flex items-center gap-2">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        permissions.accessibilityService === 'authorized' ? 'bg-[#FFC928]' : 'bg-red-500'
+                      }`}
                     />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onTriggerDeviceAction({
-                          actionType: 'OPEN_APP',
-                          targetApp: testAppName,
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black text-xs font-semibold shrink-0"
-                    >
-                      Open
-                    </button>
-                  </div>
-
-                  <div className="flex gap-1.5">
-                    <input
-                      type="time"
-                      value={testAlarmTime}
-                      onChange={(e) => setTestAlarmTime(e.target.value)}
-                      className="flex-1 min-w-0 bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const [h, m] = testAlarmTime.split(':').map(Number);
-                        onTriggerDeviceAction({
-                          actionType: 'SET_ALARM',
-                          alarmHour: h || 7,
-                          alarmMinute: m || 0,
-                          label: 'JARVIS Alarm',
-                        });
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black text-xs font-semibold shrink-0"
-                    >
-                      Alarm
-                    </button>
-                  </div>
-
-                  <div className="flex gap-1.5">
-                    <input
-                      type="number"
-                      value={testTimerSec}
-                      onChange={(e) => setTestTimerSec(e.target.value)}
-                      className="flex-1 min-w-0 bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                      placeholder="Sec"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onTriggerDeviceAction({
-                          actionType: 'SET_TIMER',
-                          timerSeconds: Number(testTimerSec) || 60,
-                          label: 'Quick Timer',
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black text-xs font-semibold shrink-0"
-                    >
-                      Timer
-                    </button>
+                    <span>
+                      {permissions.accessibilityService === 'authorized'
+                        ? 'JARVIS Accessibility Service Active'
+                        : 'Service Not Enabled in Android Settings'}
+                    </span>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (Capacitor.isNativePlatform()) {
+                      await JarvisNativeDevice.openAccessibilitySettings();
+                    }
+                  }}
+                  className="px-3 py-2 rounded-lg bg-[#FFC928] text-black font-semibold text-xs inline-flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Android Settings</span>
+                </button>
+              </div>
 
-                {/* Communication Intent Dispatchers: Call, SMS, WhatsApp */}
-                <div className="pt-2 border-t border-white/10 space-y-2">
-                  <div className="text-[11px] text-white/60">
-                    Communication Intents (Requires user confirmation before execution)
+              {/* Setup Wizard */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold">
+                  Accessibility Setup Wizard
+                </div>
+                <div className="space-y-2 text-xs text-white/80">
+                  <div className="flex items-start gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#FFC928]/20 text-[#FFC928] flex items-center justify-center font-bold text-[11px] shrink-0">1</span>
+                    <span>Tap <strong>Open Android Settings</strong> above to navigate to Accessibility.</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      value={testContactPhone}
-                      onChange={(e) => setTestContactPhone(e.target.value)}
-                      placeholder="Phone number (e.g. +919876543210)"
-                      className="bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                    />
-                    <input
-                      type="text"
-                      value={testMessageBody}
-                      onChange={(e) => setTestMessageBody(e.target.value)}
-                      placeholder="Message body"
-                      className="bg-black border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                    />
+                  <div className="flex items-start gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#FFC928]/20 text-[#FFC928] flex items-center justify-center font-bold text-[11px] shrink-0">2</span>
+                    <span>Locate <strong>JARVIS AI Screen &amp; Action Controller</strong> under Downloaded Apps.</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onTriggerDeviceAction({
-                          actionType: 'DIAL_NUMBER',
-                          phoneNumberOrContact: testContactPhone,
-                          requiresConfirmation: true,
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg border border-[#FFC928]/40 text-[#FFC928] text-xs hover:bg-[#FFC928]/10"
-                    >
-                      Prepare Call Dialer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onTriggerDeviceAction({
-                          actionType: 'SEND_SMS',
-                          phoneNumberOrContact: testContactPhone,
-                          label: testMessageBody,
-                          requiresConfirmation: true,
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg border border-[#FFC928]/40 text-[#FFC928] text-xs hover:bg-[#FFC928]/10"
-                    >
-                      Draft SMS Intent
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onTriggerDeviceAction({
-                          actionType: 'SEND_WHATSAPP',
-                          phoneNumberOrContact: testContactPhone,
-                          label: testMessageBody,
-                          requiresConfirmation: true,
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg border border-[#FFC928]/40 text-[#FFC928] text-xs hover:bg-[#FFC928]/10"
-                    >
-                      Draft WhatsApp Intent
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onTriggerDeviceAction({
-                          actionType: 'CHECK_DEVICE_STATUS',
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg border border-white/20 text-white/80 text-xs hover:bg-white/5"
-                    >
-                      Read Device Telemetry
-                    </button>
+                  <div className="flex items-start gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#FFC928]/20 text-[#FFC928] flex items-center justify-center font-bold text-[11px] shrink-0">3</span>
+                    <span>Toggle the switch <strong>ON</strong> and grant the Android permission prompt.</span>
                   </div>
                 </div>
               </div>
 
-              {/* Active Timers & Alarms */}
-              {activeTimers.length > 0 && (
-                <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-2">
-                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                    Active Timers & Alarms
-                  </div>
-                  {activeTimers.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center justify-between text-xs py-1.5 border-b border-white/5 last:border-0"
-                    >
-                      <span>{t.label}</span>
-                      <span className="font-mono-tabular text-[#FFC928]">
-                        {t.triggered ? 'Completed' : `${t.remainingSeconds}s remaining`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Action Audit Log */}
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
+              {/* Live Test Controls */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
                 <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                  Device Action Audit Log ({actionLogs.length})
+                  Live Accessibility Bridge Verification
                 </div>
-                {actionLogs.length === 0 ? (
-                  <p className="text-xs text-white/40">No device actions executed yet.</p>
-                ) : (
-                  <div className="space-y-2 max-h-44 overflow-y-auto">
-                    {actionLogs.slice(0, 12).map((log) => (
-                      <div
-                        key={log.id}
-                        className="p-2.5 rounded-lg bg-black border border-white/10 text-xs flex items-start justify-between gap-2"
-                      >
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={isReadingScreen}
+                    onClick={handleTestReadScreen}
+                    className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black font-semibold text-xs"
+                  >
+                    {isReadingScreen ? 'Reading...' : 'Inspect Visible Screen Controls'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (Capacitor.isNativePlatform()) {
+                        JarvisNativeDevice.performGlobalAction({ action: 'BACK' });
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-white/20 text-xs text-white hover:bg-white/5"
+                  >
+                    Test Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (Capacitor.isNativePlatform()) {
+                        JarvisNativeDevice.performGlobalAction({ action: 'HOME' });
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-white/20 text-xs text-white hover:bg-white/5"
+                  >
+                    Test Home
+                  </button>
+                </div>
+                {screenFeedback && <div className="text-xs text-[#FFC928] pt-1">{screenFeedback}</div>}
+
+                {accessibleNodes.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pt-2 border-t border-white/10">
+                    {accessibleNodes.slice(0, 15).map((node, i) => (
+                      <div key={i} className="text-[11px] bg-black p-1.5 rounded border border-white/10 flex justify-between">
+                        <span className="text-white truncate">{node.text || node.viewId || node.className}</span>
+                        <span className="text-[#FFC928] shrink-0">{node.clickable ? 'clickable' : node.editable ? 'editable' : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* 5. BACKGROUND ASSISTANT */}
+          {/* ========================================================================= */}
+          {activeTab === 'background' && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">Background Service State</div>
+                  <div className="text-sm font-semibold mt-0.5 flex items-center gap-2">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        permissions.backgroundService === 'running' ? 'bg-emerald-500' : 'bg-white/40'
+                      }`}
+                    />
+                    <span>
+                      {permissions.backgroundService === 'running'
+                        ? 'Persistent Foreground Service Active'
+                        : 'Background Service Stopped'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (Capacitor.isNativePlatform()) {
+                      if (permissions.backgroundService === 'running') {
+                        await JarvisNativeDevice.stopBackgroundService();
+                      } else {
+                        await JarvisNativeDevice.startBackgroundService();
+                      }
+                      onRefreshPermissions();
+                    }
+                  }}
+                  className={`px-3 py-2 rounded-lg font-semibold text-xs ${
+                    permissions.backgroundService === 'running'
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                      : 'bg-[#FFC928] text-black'
+                  }`}
+                >
+                  {permissions.backgroundService === 'running' ? 'Stop Service' : 'Start Service'}
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
+                  <div>
+                    <div className="text-xs font-medium text-white">Start Automatically on Phone Boot</div>
+                    <div className="text-[11px] text-white/50">Initialize background assistant tasks when the device finishes booting</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.backgroundAssistant.bootStart}
+                    onChange={(e) => updateBackground({ bootStart: e.target.checked })}
+                    className="w-4 h-4 accent-[#FFC928]"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
+                  <div>
+                    <div className="text-xs font-medium text-white">Persistent Notification Banner</div>
+                    <div className="text-[11px] text-white/50">Keep ongoing Android status notification so OS does not terminate assistant</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.backgroundAssistant.persistentNotification}
+                    onChange={(e) => updateBackground({ persistentNotification: e.target.checked })}
+                    className="w-4 h-4 accent-[#FFC928]"
+                  />
+                </label>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
+                <div className="text-xs uppercase tracking-wider text-[#C5A059]">Battery &amp; Process Optimization</div>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  Android battery management can pause background services when the phone is idle. Request battery optimization exemption to maintain assistant responsiveness.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (Capacitor.isNativePlatform()) {
+                      await JarvisNativeDevice.requestIgnoreBatteryOptimizations();
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-[#FFC928]/40 text-[#FFC928] text-xs hover:bg-[#FFC928]/10"
+                >
+                  Request Battery Optimization Exemption
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* 6. CALLS & MESSAGES */}
+          {/* ========================================================================= */}
+          {activeTab === 'comms' && (
+            <div className="space-y-6">
+              {/* Phone Calls */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-[#FFC928]" />
+                  <span>Phone Calls &amp; Contacts</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={contactSearchQuery}
+                    onChange={(e) => setContactSearchQuery(e.target.value)}
+                    placeholder="Search contact name..."
+                    className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSearchingContacts}
+                    onClick={handleSearchContacts}
+                    className="px-3 py-2 rounded-lg bg-[#FFC928] text-black text-xs font-semibold"
+                  >
+                    {isSearchingContacts ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+
+                {contactSearchResults.length > 0 && (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pt-1">
+                    {contactSearchResults.map((c) => (
+                      <div key={c.id} className="p-2 rounded bg-black border border-white/10 flex items-center justify-between text-xs">
                         <div>
-                          <div className="font-medium text-[#FFC928]">{log.title}</div>
-                          <div className="text-white/60 text-[11px]">{log.detail}</div>
+                          <div className="font-medium text-white">{c.displayName}</div>
+                          <div className="text-[11px] text-white/50">{c.phoneNumber || 'No number'}</div>
                         </div>
-                        {log.androidIntentUri && (
-                          <a
-                            href={log.androidIntentUri}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-2 py-1 rounded bg-[#FFC928]/15 text-[#FFC928] text-[11px] inline-flex items-center gap-1 shrink-0"
+                        {c.phoneNumber && (
+                          <button
+                            type="button"
+                            onClick={() => onTriggerDeviceAction({ actionType: 'DIAL_NUMBER', phoneNumberOrContact: c.phoneNumber })}
+                            className="px-2.5 py-1 rounded bg-[#FFC928] text-black text-[11px] font-semibold"
                           >
-                            <span>Launch</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                            Dial
+                          </button>
                         )}
                       </div>
                     ))}
@@ -1233,356 +1180,228 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
               </div>
 
-              {/* Native Kotlin Reference Module */}
+              {/* SMS & WhatsApp */}
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-medium text-white">
-                      Native Android Kotlin Bridge Blueprint
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      Production Intent & AccessibilityService implementation for Android APK packaging
-                    </div>
-                  </div>
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-[#FFC928]" />
+                  <span>SMS &amp; WhatsApp Integration</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowKotlinCode(!showKotlinCode)}
-                    className="px-3 py-1.5 rounded-lg border border-[#FFC928]/35 text-xs text-[#FFC928]"
+                    onClick={() =>
+                      onTriggerDeviceAction({
+                        actionType: 'SEND_SMS',
+                        phoneNumberOrContact: '+919876543210',
+                        label: 'Checking in with JARVIS Assistant.',
+                        requiresConfirmation: true,
+                      })
+                    }
+                    className="px-3 py-2 rounded-lg border border-[#FFC928]/40 text-[#FFC928] text-xs hover:bg-[#FFC928]/10"
                   >
-                    {showKotlinCode ? 'Hide Code' : 'Inspect Kotlin'}
+                    Test Draft SMS Intent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onTriggerDeviceAction({
+                        actionType: 'SEND_WHATSAPP',
+                        phoneNumberOrContact: '+919876543210',
+                        label: 'Hello from JARVIS AI.',
+                        requiresConfirmation: true,
+                      })
+                    }
+                    className="px-3 py-2 rounded-lg border border-[#FFC928]/40 text-[#FFC928] text-xs hover:bg-[#FFC928]/10"
+                  >
+                    Test WhatsApp Composer Intent
                   </button>
                 </div>
-                {showKotlinCode && (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={handleCopyKotlin}
-                      className="absolute top-2 right-2 px-2.5 py-1 rounded bg-[#FFC928] text-black text-[11px] font-semibold inline-flex items-center gap-1"
-                    >
-                      {copiedCode ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedCode ? 'Copied' : 'Copy'}</span>
-                    </button>
-                    <pre className="p-3 rounded-lg bg-black border border-white/10 text-[11px] text-white/80 font-mono overflow-x-auto max-h-64">
-                      {NATIVE_KOTLIN_BLUEPRINT}
-                    </pre>
+              </div>
+
+              {/* Notification Reader */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">Notification Summarizer</div>
+                  <button
+                    type="button"
+                    disabled={isLoadingNotifs}
+                    onClick={handleFetchRecentNotifications}
+                    className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black text-xs font-semibold"
+                  >
+                    {isLoadingNotifs ? 'Loading...' : 'Fetch Recent Notifications'}
+                  </button>
+                </div>
+                {recentNotifications.length > 0 ? (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {recentNotifications.map((n, i) => (
+                      <div key={i} className="p-2 rounded bg-black border border-white/10 text-xs">
+                        <div className="font-semibold text-white">{n.title} <span className="text-[10px] text-white/40">({n.packageName})</span></div>
+                        <div className="text-white/70 text-[11px] mt-0.5">{n.text}</div>
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <div className="text-xs text-white/50">No notifications captured yet. Ensure Notification Access is authorized.</div>
                 )}
               </div>
             </div>
           )}
 
-          {/* 4. SCREEN VISION & UNDERSTANDING */}
-          {activeTab === 'vision' && (
+          {/* ========================================================================= */}
+          {/* 7. APP INTEGRATIONS */}
+          {/* ========================================================================= */}
+          {activeTab === 'apps' && (
             <div className="space-y-6">
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-3">
-                <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                  User-Authorized Screen Capture & Multimodal Vision
-                </div>
-                <p className="text-xs text-white/65 leading-relaxed">
-                  Capture your active screen or upload a mobile screenshot so JARVIS AI can inspect
-                  visible UI elements, summarize content, and suggest next actions.
-                </p>
-
-                <div className="flex flex-wrap gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleCaptureLiveScreen}
-                    className="px-4 py-2.5 min-h-[42px] rounded-xl bg-[#FFC928] text-black font-semibold text-xs inline-flex items-center gap-2"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span>Capture Live Screen</span>
-                  </button>
-
-                  <label className="px-4 py-2.5 min-h-[42px] rounded-xl border border-[#FFC928]/40 text-[#FFC928] font-medium text-xs inline-flex items-center gap-2 cursor-pointer hover:bg-[#FFC928]/10">
-                    <Camera className="w-4 h-4" />
-                    <span>Upload Screenshot</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleUploadScreenshotFile}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              {screenPreviewUrl && (
-                <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-[#C5A059]">Captured Screen Preview</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setScreenPreviewUrl(null);
-                        setScreenBase64('');
-                        setScreenAnalysisResult('');
-                      }}
-                      className="text-xs text-white/50 hover:text-white"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <img
-                    src={screenPreviewUrl}
-                    alt="Captured screen"
-                    referrerPolicy="no-referrer"
-                    className="w-full max-h-56 object-contain rounded-lg border border-white/10 bg-black"
-                  />
-
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={screenPrompt}
-                      onChange={(e) => setScreenPrompt(e.target.value)}
-                      placeholder="Ask about this screen (or leave blank for full UI breakdown)..."
-                      className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
-                    />
-                    <button
-                      type="button"
-                      disabled={isAnalyzingScreen}
-                      onClick={handleRunScreenAnalysis}
-                      className="px-4 py-2 rounded-lg bg-[#FFC928] text-black font-semibold text-xs disabled:opacity-50"
-                    >
-                      {isAnalyzingScreen ? 'Analyzing...' : 'Analyze'}
-                    </button>
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">Installed Apps Discovery</div>
+                  <div className="text-xs text-white/60 mt-0.5">
+                    Discover launchable packages and configure voice aliases (e.g. &quot;YT&quot; for YouTube).
                   </div>
                 </div>
-              )}
-
-              {screenAnalysisResult && (
-                <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-2">
-                  <div className="text-xs uppercase tracking-wider text-[#FFC928]">
-                    JARVIS Screen Analysis & Next Actions
-                  </div>
-                  <p className="text-xs text-white/90 whitespace-pre-wrap leading-relaxed">
-                    {screenAnalysisResult}
-                  </p>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">
-                      Auto-Analyze Immediately on Capture
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      Automatically run Gemini vision analysis as soon as a screenshot is captured
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.screenVision.autoAnalyzeOnCapture}
-                    onChange={(e) => updateVision({ autoAnalyzeOnCapture: e.target.checked })}
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* 5. CHAT & FILES */}
-          {activeTab === 'chat' && (
-            <div className="space-y-6">
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-wider text-[#C5A059]">
-                    Conversation Threads ({threads.length})
-                  </span>
-                  <button
-                    type="button"
-                    onClick={onNewThread}
-                    className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black text-xs font-semibold inline-flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>New Chat</span>
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {threads.map((t) => (
-                    <div
-                      key={t.id}
-                      className={`p-3 rounded-lg border flex items-center justify-between gap-2 text-xs ${
-                        t.id === activeThreadId
-                          ? 'bg-[#FFC928]/10 border-[#FFC928]/40 text-white'
-                          : 'bg-black border-white/10 text-white/75'
-                      }`}
-                    >
-                      {editingThreadId === t.id ? (
-                        <div className="flex-1 flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={editingThreadTitle}
-                            onChange={(e) => setEditingThreadTitle(e.target.value)}
-                            className="flex-1 bg-[#0B0B0B] border border-[#FFC928]/40 rounded px-2 py-1 text-xs text-white"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (editingThreadTitle.trim()) {
-                                onRenameThread(t.id, editingThreadTitle.trim());
-                              }
-                              setEditingThreadId(null);
-                            }}
-                            className="px-2 py-1 rounded bg-[#FFC928] text-black font-semibold"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => onSelectThread(t.id)}
-                          className="flex-1 text-left truncate"
-                        >
-                          <div className="font-medium truncate">{t.title}</div>
-                          <div className="text-[10px] text-white/45">
-                            {t.messages.length} messages · Updated{' '}
-                            {new Date(t.updatedAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </div>
-                        </button>
-                      )}
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingThreadId(t.id);
-                            setEditingThreadTitle(t.title);
-                          }}
-                          aria-label="Rename thread"
-                          className="p-1.5 text-white/50 hover:text-[#FFC928]"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        {threads.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => onDeleteThread(t.id)}
-                            aria-label="Delete thread"
-                            className="p-1.5 text-white/50 hover:text-red-400"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
                 <button
                   type="button"
-                  onClick={onClearAllThreads}
-                  className="text-xs text-red-400 hover:underline inline-flex items-center gap-1 pt-1"
+                  disabled={isScanningApps}
+                  onClick={handleScanInstalledApps}
+                  className="px-3 py-2 rounded-lg bg-[#FFC928] text-black font-semibold text-xs inline-flex items-center gap-1.5"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear All Conversation History</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${isScanningApps ? 'animate-spin' : ''}`} />
+                  <span>{isScanningApps ? 'Scanning...' : 'Scan Installed Apps'}</span>
                 </button>
               </div>
 
-              <div className="space-y-3">
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">Press Enter to Send</div>
-                    <div className="text-[11px] text-white/50">
-                      Submit messages in the bottom chat composer when pressing Enter
+              {/* App Integrations List */}
+              <div className="space-y-2">
+                {settings.appIntegrations.apps.map((app) => (
+                  <div
+                    key={app.packageName}
+                    className="p-3 rounded-xl bg-[#0B0B0B] border border-white/10 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-white truncate flex items-center gap-2">
+                        <span>{app.appName}</span>
+                        {app.isSystemApp && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-white/60">System</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-white/40 font-mono truncate">{app.packageName}</div>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {app.aliases.map((alias, ai) => (
+                          <span key={ai} className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFC928]/10 text-[#FFC928] border border-[#FFC928]/20">
+                            {alias}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onTriggerDeviceAction({
+                            actionType: 'OPEN_APP',
+                            targetApp: app.appName,
+                          })
+                        }
+                        className="px-2.5 py-1 rounded bg-[#FFC928] text-black text-xs font-semibold"
+                      >
+                        Launch
+                      </button>
+                      <input
+                        type="checkbox"
+                        checked={app.enabled}
+                        onChange={(e) => {
+                          const updated = settings.appIntegrations.apps.map((a) =>
+                            a.packageName === app.packageName ? { ...a, enabled: e.target.checked } : a
+                          );
+                          updateAppIntegrations({ apps: updated });
+                        }}
+                        className="w-4 h-4 accent-[#FFC928]"
+                      />
                     </div>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.chatInterface.enterToSend}
-                    onChange={(e) => updateChat({ enterToSend: e.target.checked })}
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
-
-                <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[#C5A059]">Max Attachment Upload Limit</span>
-                    <span className="text-[#FFC928] font-mono-tabular">
-                      {settings.chatInterface.maxUploadSizeMb} MB
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="5"
-                    max="25"
-                    step="5"
-                    value={settings.chatInterface.maxUploadSizeMb}
-                    onChange={(e) => updateChat({ maxUploadSizeMb: parseInt(e.target.value, 10) })}
-                    className="w-full accent-[#FFC928]"
-                  />
-                </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* 6. MEMORY & PERSONALIZATION */}
+          {/* ========================================================================= */}
+          {/* 8. MEMORY & PERSONALITY */}
+          {/* ========================================================================= */}
           {activeTab === 'memory' && (
             <div className="space-y-6">
-              <div className="space-y-3">
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">
-                      Enable Relevant Memory Retrieval
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      Inject only matching user preferences and facts into the active AI prompt
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.memory.enabled}
-                    onChange={(e) => updateMemory({ enabled: e.target.checked })}
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">
-                      Auto-Save Approved User Preferences
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      Allow JARVIS to store facts when you ask it to remember something
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.memory.autoExtractFacts}
-                    onChange={(e) => updateMemory({ autoExtractFacts: e.target.checked })}
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
+              {/* Sir / Boss Preference */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
+                <label className="block text-xs text-[#C5A059]">User Address Title Preference</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'adaptive', title: 'Adaptive (Recommended)', desc: '"Sir" during briefings; "Boss" during actions' },
+                    { id: 'sir', title: 'Always "Sir"', desc: 'Polished, formal executive demeanor' },
+                    { id: 'boss', title: 'Always "Boss"', desc: 'Friendly, modern personal assistant demeanor' },
+                  ].map((addr) => (
+                    <button
+                      key={addr.id}
+                      type="button"
+                      onClick={() => updatePersonality({ addressPreference: addr.id as AddressPreference })}
+                      className={`p-3 rounded-xl border text-left transition-colors ${
+                        settings.personality.addressPreference === addr.id
+                          ? 'bg-[#FFC928]/15 border-[#FFC928] text-white'
+                          : 'bg-black border-white/10 text-white/70'
+                      }`}
+                    >
+                      <div className="text-xs font-semibold text-[#FFC928]">{addr.title}</div>
+                      <div className="text-[10px] text-white/50 mt-0.5">{addr.desc}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Add Memory Form */}
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-3">
-                <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                  Add Personal Memory Fact
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <select
-                    value={newMemoryCategory}
-                    onChange={(e) =>
-                      setNewMemoryCategory(e.target.value as MemoryFact['category'])
-                    }
-                    className="bg-black border border-white/15 rounded-lg px-2.5 py-2 text-xs text-white"
+              {/* Emotion Delivery Mode */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
+                <label className="block text-xs text-[#C5A059]">Emotion Delivery Mode</label>
+                <select
+                  value={settings.personality.emotionMode}
+                  onChange={(e) => updatePersonality({ emotionMode: e.target.value as EmotionMode })}
+                  className="w-full bg-black border border-white/15 rounded-lg px-3 py-2.5 text-xs text-white"
+                >
+                  <option value="adaptive">Adaptive Emotional Intelligence</option>
+                  <option value="calm">Calm &amp; Steady</option>
+                  <option value="happy">Warm &amp; Happy</option>
+                  <option value="serious">Mission-Critical Serious</option>
+                  <option value="concerned">Protective &amp; Concerned</option>
+                  <option value="excited">Energetic &amp; Sharp</option>
+                  <option value="reassuring">Grounded &amp; Reassuring</option>
+                </select>
+              </div>
+
+              {/* Persistent Facts Manager */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">
+                    Persistent User Memories ({memories.length})
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(memories, null, 2));
+                      const dl = document.createElement('a');
+                      dl.setAttribute('href', dataStr);
+                      dl.setAttribute('download', `jarvis-memory-${Date.now()}.json`);
+                      dl.click();
+                    }}
+                    className="px-2.5 py-1 rounded border border-white/20 text-xs text-white/70 inline-flex items-center gap-1 hover:text-[#FFC928]"
                   >
-                    <option value="preference">Preference</option>
-                    <option value="contact">Contact</option>
-                    <option value="routine">Routine</option>
-                    <option value="language">Language</option>
-                  </select>
+                    <Download className="w-3 h-3" />
+                    <span>Export</span>
+                  </button>
+                </div>
+
+                <div className="flex gap-2">
                   <input
                     type="text"
                     value={newMemoryText}
                     onChange={(e) => setNewMemoryText(e.target.value)}
-                    placeholder="e.g., My work hours are 9 AM to 6 PM..."
+                    placeholder="Add a new fact to remember..."
                     className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
                   />
                   <button
@@ -1593,289 +1412,293 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         setNewMemoryText('');
                       }
                     }}
-                    className="px-4 py-2 rounded-lg bg-[#FFC928] text-black font-semibold text-xs inline-flex items-center justify-center gap-1"
+                    className="px-3 py-2 rounded-lg bg-[#FFC928] text-black text-xs font-semibold"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Save</span>
+                    Add
                   </button>
                 </div>
-              </div>
 
-              {/* Stored Memories List with Enable/Disable & Delete */}
-              <div className="space-y-2">
-                <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                  Stored Memories ({memories.length})
-                </div>
-                {memories.map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-3 rounded-xl bg-[#0B0B0B] border border-white/10 flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={m.enabled !== false}
-                        onChange={() => onToggleMemory(m.id)}
-                        aria-label={`Toggle memory: ${m.fact}`}
-                        className="w-4 h-4 accent-[#FFC928] shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <span className="inline-block px-2 py-0.5 rounded bg-[#FFC928]/15 text-[#FFC928] text-[10px] uppercase mr-2">
-                          {m.category}
-                        </span>
-                        <span
-                          className={
-                            m.enabled === false ? 'text-white/40 line-through' : 'text-white/90'
-                          }
-                        >
-                          {m.fact}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteMemory(m.id)}
-                      aria-label="Delete memory"
-                      className="p-1.5 text-white/45 hover:text-red-400 shrink-0"
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {memories.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-2.5 rounded-lg bg-black border border-white/10 flex items-center justify-between text-xs"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 7. SMART PLANNER & AUTOMATION ROUTINES */}
-          {activeTab === 'planner' && (
-            <div className="space-y-6">
-              {/* Add Task / Reminder */}
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-3">
-                <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                  Smart Planner · Tasks, Reminders & Daily Schedule
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                  <select
-                    value={newTaskCategory}
-                    onChange={(e) =>
-                      setNewTaskCategory(e.target.value as PlannerTask['category'])
-                    }
-                    className="bg-black border border-white/15 rounded-lg px-2.5 py-2 text-xs text-white"
-                  >
-                    <option value="task">Task</option>
-                    <option value="reminder">Reminder</option>
-                    <option value="schedule">Schedule</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={newTaskTitle}
-                    onChange={(e) => setNewTaskTitle(e.target.value)}
-                    placeholder="Task or reminder title..."
-                    className="sm:col-span-2 bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
-                  />
-                  <input
-                    type="text"
-                    value={newTaskDue}
-                    onChange={(e) => setNewTaskDue(e.target.value)}
-                    placeholder="Time (e.g. 18:00)"
-                    className="bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (newTaskTitle.trim()) {
-                      onAddPlannerTask(
-                        newTaskTitle.trim(),
-                        newTaskDue.trim() || 'Today',
-                        newTaskCategory
-                      );
-                      setNewTaskTitle('');
-                      setNewTaskDue('');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-lg bg-[#FFC928] text-black font-semibold text-xs inline-flex items-center gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add to Planner</span>
-                </button>
-
-                <div className="space-y-2 pt-2">
-                  {plannerTasks.length === 0 ? (
-                    <p className="text-xs text-white/40">No planner items scheduled.</p>
-                  ) : (
-                    plannerTasks.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-2.5 rounded-lg bg-black border border-white/10 flex items-center justify-between gap-2 text-xs"
-                      >
-                        <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={item.completed}
-                            onChange={() => onTogglePlannerTask(item.id)}
-                            className="w-4 h-4 accent-[#FFC928]"
-                          />
-                          <span
-                            className={
-                              item.completed ? 'line-through text-white/40' : 'text-white/90'
-                            }
-                          >
-                            {item.title}
-                          </span>
-                          {item.dueTime && (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-[#FFC928]/15 text-[#FFC928] font-mono-tabular">
-                              {item.dueTime}
-                            </span>
-                          )}
-                        </label>
+                      <span className="text-white/85 flex-1 pr-2">{m.fact}</span>
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
-                          onClick={() => onDeletePlannerTask(item.id)}
-                          className="p-1 text-white/40 hover:text-red-400"
+                          onClick={() => onToggleMemory(m.id)}
+                          className={`text-[10px] px-2 py-0.5 rounded border ${
+                            m.enabled ? 'border-emerald-500/40 text-emerald-400' : 'border-white/20 text-white/40'
+                          }`}
+                        >
+                          {m.enabled ? 'Active' : 'Disabled'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteMemory(m.id)}
+                          className="text-red-400 hover:text-red-300"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                    ))
-                  )}
+                    </div>
+                  ))}
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Multi-Step Automation Routines */}
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
-                <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                  Automation Routines ("Work Mode" & Custom Workflows)
+          {/* ========================================================================= */}
+          {/* 9. CLOUD & LOCAL BACKEND */}
+          {/* ========================================================================= */}
+          {activeTab === 'backend' && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-4">
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold flex items-center gap-2">
+                  <Server className="w-4 h-4 text-[#FFC928]" />
+                  <span>Cloud + Local Architecture</span>
                 </div>
+
                 <div className="space-y-3">
-                  {routines.map((r) => (
-                    <div
-                      key={r.id}
-                      className="p-3.5 rounded-xl bg-black border border-[#FFC928]/25 space-y-2"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <div className="text-xs font-semibold text-[#FFC928]">{r.name}</div>
-                          <div className="text-[11px] text-white/55">{r.description}</div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <input
-                            type="checkbox"
-                            checked={r.enabled}
-                            onChange={() => onToggleRoutine(r.id)}
-                            aria-label={`Enable ${r.name}`}
-                            className="w-4 h-4 accent-[#FFC928]"
-                          />
-                          <button
-                            type="button"
-                            disabled={!r.enabled}
-                            onClick={() => onRunRoutine(r)}
-                            className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-40"
-                          >
-                            <Play className="w-3 h-3 fill-current" />
-                            <span>Run</span>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="text-[11px] text-white/60 pl-3 border-l border-[#FFC928]/30 space-y-0.5">
-                        {r.steps.map((st, idx) => (
-                          <div key={idx}>• {st}</div>
-                        ))}
-                      </div>
+                  <div>
+                    <label className="block text-xs text-[#C5A059] mb-1">Primary Cloud Endpoint (Render)</label>
+                    <input
+                      type="text"
+                      value={settings.cloudLocal.primaryUrl}
+                      onChange={(e) => updateCloudLocal({ primaryUrl: e.target.value.trim() })}
+                      className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-[#C5A059] mb-1">Local Backup Endpoint (Termux Localhost)</label>
+                    <input
+                      type="text"
+                      value={settings.cloudLocal.backupUrl}
+                      onChange={(e) => updateCloudLocal({ backupUrl: e.target.value.trim() })}
+                      className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                  <div className="text-xs text-white/70">
+                    Active Connection: <span className="text-[#FFC928] font-mono">{backendStatus?.resolvedUrl || 'Auto-Resolved'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onRefreshBackend}
+                    className="px-3 py-1.5 rounded-lg bg-[#FFC928] text-black font-semibold text-xs inline-flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Ping &amp; Health Check</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* 10. SECURITY & PERMISSIONS */}
+          {/* ========================================================================= */}
+          {activeTab === 'security' && (
+            <div className="space-y-6">
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
+                <div className="text-xs uppercase tracking-wider text-[#C5A059]">Transparent Permission Manager</div>
+                <div className="space-y-2 text-xs">
+                  {[
+                    { name: 'Microphone', status: permissions.microphone, action: () => requestMicrophonePermission() },
+                    { name: 'Camera', status: permissions.camera, action: () => requestCameraPermission() },
+                    { name: 'Notifications', status: permissions.notifications, action: () => requestNotificationPermission() },
+                    { name: 'Contacts', status: permissions.contacts || 'prompt', action: () => requestContactsPermission() },
+                    { name: 'Phone Calls', status: permissions.phone || 'prompt', action: () => requestPhonePermission() },
+                  ].map((perm) => (
+                    <div key={perm.name} className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
+                      <span className="text-white">{perm.name}</span>
+                      {perm.status === 'granted' ? (
+                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Granted
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await perm.action();
+                            onRefreshPermissions();
+                          }}
+                          className="px-2.5 py-1 rounded bg-[#FFC928] text-black font-semibold text-[11px]"
+                        >
+                          Request
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Automation Execution Logs */}
-              {automationLogs.length > 0 && (
-                <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">
-                    Automation Execution Logs
+              {/* Special Permissions */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold">Special Android Roles &amp; Permissions</div>
+                <div className="space-y-2 text-xs">
+                  <div className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
+                    <div>
+                      <div className="text-white font-medium">Default Assistant Role</div>
+                      <div className="text-[10px] text-white/50">Allow JARVIS to respond to long-press home or assistant gestures</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (Capacitor.isNativePlatform()) {
+                          JarvisNativeDevice.requestDefaultAssistant();
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded border border-[#FFC928]/40 text-[#FFC928] text-[11px]"
+                    >
+                      Configure
+                    </button>
                   </div>
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto text-xs">
-                    {automationLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="p-2 rounded bg-black border border-white/10 flex items-center justify-between"
-                      >
-                        <div>
-                          <span className="text-[#FFC928] font-medium">{log.routineName}: </span>
-                          <span className="text-white/75">{log.detail}</span>
-                        </div>
-                        <span className="text-[10px] text-white/40 font-mono-tabular">
-                          {log.status}
-                        </span>
-                      </div>
-                    ))}
+
+                  <div className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
+                    <div>
+                      <div className="text-white font-medium">Device Administrator</div>
+                      <div className="text-[10px] text-white/50">Permits JARVIS to lock phone screen upon user voice command</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (Capacitor.isNativePlatform()) {
+                          JarvisNativeDevice.requestDeviceAdmin();
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded border border-[#FFC928]/40 text-[#FFC928] text-[11px]"
+                    >
+                      Configure
+                    </button>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
-          {/* 8. APPEARANCE & ORB ANIMATION */}
-          {activeTab === 'appearance' && (
+          {/* ========================================================================= */}
+          {/* 11. DIAGNOSTICS */}
+          {/* ========================================================================= */}
+          {activeTab === 'diagnostics' && (
             <div className="space-y-6">
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 flex items-center justify-between text-xs">
-                <div>
-                  <div className="text-[#C5A059] uppercase tracking-wider">
-                    3D Golden AI Orb Telemetry
+              {/* Interaction Latency Metrics */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#FFC928]" />
+                  <span>Interaction Latency Diagnostics</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs text-center">
+                  <div className="p-2.5 rounded bg-black border border-white/10">
+                    <div className="text-white/50 text-[10px]">STT Processing</div>
+                    <div className="text-sm font-semibold text-[#FFC928] mt-1 font-mono">
+                      {latencyMetrics?.sttLatencyMs || 0} ms
+                    </div>
                   </div>
-                  <div className="text-white/75 mt-1 font-mono-tabular">
-                    {renderTelemetry.fps} FPS · {renderTelemetry.nodes} Neural Nodes ·{' '}
-                    {renderTelemetry.filaments} Synaptic Filaments
+                  <div className="p-2.5 rounded bg-black border border-white/10">
+                    <div className="text-white/50 text-[10px]">AI First-Token</div>
+                    <div className="text-sm font-semibold text-[#FFC928] mt-1 font-mono">
+                      {latencyMetrics?.aiFirstTokenMs || 0} ms
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded bg-black border border-white/10">
+                    <div className="text-white/50 text-[10px]">TTS First-Audio</div>
+                    <div className="text-sm font-semibold text-[#FFC928] mt-1 font-mono">
+                      {latencyMetrics?.ttsFirstAudioMs || 0} ms
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded bg-black border border-white/10">
+                    <div className="text-white/50 text-[10px]">Total Turn Roundtrip</div>
+                    <div className="text-sm font-semibold text-[#FFC928] mt-1 font-mono">
+                      {latencyMetrics?.totalTurnMs || 0} ms
+                    </div>
                   </div>
                 </div>
               </div>
 
+              {/* Rendering & Storage Diagnostics */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-1.5">
+                  <div className="text-[#C5A059] uppercase tracking-wider text-[10px]">3D Orb Shaders</div>
+                  <div className="text-white font-medium">{renderTelemetry.fps} FPS · {renderTelemetry.nodes} nodes · {renderTelemetry.filaments} filaments</div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-1.5">
+                  <div className="text-[#C5A059] uppercase tracking-wider text-[10px]">Local Persistence</div>
+                  <div className="text-white font-medium">{(storageStats.bytesUsed / 1024).toFixed(2)} KB · {storageStats.itemCount} items</div>
+                </div>
+              </div>
+
+              {/* Reset All Data */}
+              <div className="p-4 rounded-xl bg-red-950/20 border border-red-500/30 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Wipe All Data</span>
+                </div>
+                {!confirmWipe ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmWipe(true)}
+                    className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold"
+                  >
+                    Wipe Local Storage Data...
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onWipeAll();
+                        setConfirmWipe(false);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold"
+                    >
+                      Confirm Wipe
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmWipe(false)}
+                      className="px-3 py-1.5 rounded-lg border border-white/15 text-xs text-white/70"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* APPEARANCE & ORB */}
+          {/* ========================================================================= */}
+          {activeTab === 'appearance' && (
+            <div className="space-y-6">
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-[#C5A059]">Golden Glow Intensity</span>
-                  <span className="text-[#FFC928] font-mono-tabular">
-                    {Math.round(settings.appearance.goldIntensity * 100)}%
-                  </span>
+                  <span className="text-[#C5A059]">Golden Orb Intensity</span>
+                  <span className="text-[#FFC928]">{settings.appearance.goldIntensity.toFixed(2)}</span>
                 </div>
                 <input
                   type="range"
-                  min="0.4"
+                  min="0.5"
                   max="1.5"
                   step="0.05"
                   value={settings.appearance.goldIntensity}
-                  onChange={(e) =>
-                    updateAppearance({ goldIntensity: parseFloat(e.target.value) })
-                  }
+                  onChange={(e) => updateAppearance({ goldIntensity: parseFloat(e.target.value) })}
                   className="w-full accent-[#FFC928]"
                 />
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                <label className="block text-xs text-[#C5A059]">3D Neural Complexity Tier</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['ultra', 'balanced', 'battery'] as AnimationQuality[]).map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => updateAppearance({ animationQuality: q })}
-                      className={`py-2.5 rounded-lg text-xs font-medium uppercase border ${
-                        settings.appearance.animationQuality === q
-                          ? 'bg-[#FFC928]/15 border-[#FFC928] text-[#FFC928]'
-                          : 'bg-black border-white/10 text-white/65'
-                      }`}
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="space-y-3">
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">Golden Energy Rings</div>
-                    <div className="text-[11px] text-white/50">
-                      Render orbital holographic golden energy rings around the neural core
-                    </div>
+                    <div className="text-xs font-medium text-white">Orb Rings</div>
+                    <div className="text-[11px] text-white/50">Display orbital rings around the golden core</div>
                   </div>
                   <input
                     type="checkbox"
@@ -1887,61 +1710,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">Animated Network Lines</div>
-                    <div className="text-[11px] text-white/50">
-                      Render interconnected neural filaments and branching synapses
-                    </div>
+                    <div className="text-xs font-medium text-white">Network Filaments</div>
+                    <div className="text-[11px] text-white/50">Render synaptic connections between neural nodes</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={settings.appearance.showNetworkFilaments}
-                    onChange={(e) =>
-                      updateAppearance({ showNetworkFilaments: e.target.checked })
-                    }
+                    onChange={(e) => updateAppearance({ showNetworkFilaments: e.target.checked })}
                     className="w-4 h-4 accent-[#FFC928]"
                   />
                 </label>
 
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
-                    <div className="text-xs font-medium text-white">Holographic Particles</div>
-                    <div className="text-[11px] text-white/50">
-                      Render atmospheric golden dust and traveling synaptic pulses
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.appearance.showHolographicParticles}
-                    onChange={(e) =>
-                      updateAppearance({ showHolographicParticles: e.target.checked })
-                    }
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">Live Voice Captions</div>
-                    <div className="text-[11px] text-white/50">
-                      Display subtle ephemeral subtitles above the bottom composer
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.appearance.showSubtleCaptions}
-                    onChange={(e) =>
-                      updateAppearance({ showSubtleCaptions: e.target.checked })
-                    }
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">Reduced Motion Mode</div>
-                    <div className="text-[11px] text-white/50">
-                      Minimize camera drift and rapid particle motion
-                    </div>
+                    <div className="text-xs font-medium text-white">Reduced Motion</div>
+                    <div className="text-[11px] text-white/50">Minimize camera drift and particle velocities</div>
                   </div>
                   <input
                     type="checkbox"
@@ -1950,176 +1733,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="w-4 h-4 accent-[#FFC928]"
                   />
                 </label>
-              </div>
-            </div>
-          )}
-
-          {/* 9. NOTIFICATIONS & QUIET HOURS */}
-          {activeTab === 'notifications' && (
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">Proactive Reminders</div>
-                    <div className="text-[11px] text-white/50">
-                      Trigger notifications for scheduled Smart Planner tasks and timers
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.notifications.remindersEnabled}
-                    onChange={(e) =>
-                      updateNotifications({ remindersEnabled: e.target.checked })
-                    }
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                  <div>
-                    <div className="text-xs font-medium text-white">Quiet Hours Enforcement</div>
-                    <div className="text-[11px] text-white/50">
-                      Suppress non-urgent automation alerts during designated rest hours
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settings.notifications.quietHoursEnabled}
-                    onChange={(e) =>
-                      updateNotifications({ quietHoursEnabled: e.target.checked })
-                    }
-                    className="w-4 h-4 accent-[#FFC928]"
-                  />
-                </label>
-
-                {settings.notifications.quietHoursEnabled && (
-                  <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-[#0B0B0B] border border-white/10">
-                    <div>
-                      <label className="block text-xs text-[#C5A059] mb-1">
-                        Quiet Hours Start
-                      </label>
-                      <input
-                        type="time"
-                        value={settings.notifications.quietHoursStart}
-                        onChange={(e) =>
-                          updateNotifications({ quietHoursStart: e.target.value })
-                        }
-                        className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-[#C5A059] mb-1">
-                        Quiet Hours End
-                      </label>
-                      <input
-                        type="time"
-                        value={settings.notifications.quietHoursEnd}
-                        onChange={(e) =>
-                          updateNotifications({ quietHoursEnd: e.target.value })
-                        }
-                        className="w-full bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 10. PRIVACY & SECURITY */}
-          {activeTab === 'privacy' && (
-            <div className="space-y-6">
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/25 space-y-2 text-xs">
-                <div className="text-[#C5A059] uppercase tracking-wider">
-                  Local Data & Security Footprint
-                </div>
-                <div className="text-white/80 font-mono-tabular">
-                  {(storageStats.bytesUsed / 1024).toFixed(2)} KB used across{' '}
-                  {storageStats.itemCount} local stores
-                </div>
-                <p className="text-white/55 text-[11px] leading-relaxed">
-                  API keys remain strictly server-side. Microphone, camera, and screen vision
-                  operate only when explicitly triggered by you.
-                </p>
-              </div>
-
-              <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
-                <div>
-                  <div className="text-xs font-medium text-white">Ephemeral Session Mode</div>
-                  <div className="text-[11px] text-white/50">
-                    Do not persist new conversation messages to local storage
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={settings.privacy.ephemeralSession}
-                  onChange={(e) => updatePrivacy({ ephemeralSession: e.target.checked })}
-                  className="w-4 h-4 accent-[#FFC928]"
-                />
-              </label>
-
-              <div className="p-4 rounded-xl bg-red-950/20 border border-red-500/30 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>Reset & Wipe All Local Data</span>
-                </div>
-                <p className="text-xs text-white/60">
-                  Permanently erase all conversation threads, saved user memories, planner tasks,
-                  and custom settings from this device.
-                </p>
-                {!confirmWipe ? (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmWipe(true)}
-                    className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold"
-                  >
-                    Wipe All Data...
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onWipeAll();
-                        setConfirmWipe(false);
-                      }}
-                      className="px-4 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold"
-                    >
-                      Confirm Permanent Wipe
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmWipe(false)}
-                      className="px-3 py-2 rounded-lg border border-white/15 text-xs text-white/70"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 11. ABOUT JARVIS AI */}
-          {activeTab === 'about' && (
-            <div className="space-y-4">
-              <div className="p-5 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
-                <div className="font-display text-base tracking-[0.2em] text-white">
-                  JARVIS <span className="text-[#FFC928]">AI</span>
-                </div>
-                <p className="text-xs text-white/70 leading-relaxed">
-                  Personal Android & Web AI Assistant featuring an audio-reactive 3D golden neural
-                  orb, multimodal attachment analysis (Photos, Camera, Files, PDFs), multilingual
-                  voice intelligence (English, Hindi, Hinglish, Gujarati), live web search
-                  grounding, smart planner automation, and permission-governed Android Intent
-                  orchestration.
-                </p>
-                <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-[11px] text-white/55">
-                  <div>Primary Model: {settings.aiBrain.model}</div>
-                  <div>Voice Engine: {settings.voiceSpeech.voiceEngine}</div>
-                  <div>3D Engine: Three.js WebGL Shader Core</div>
-                  <div>Platform: Android / Web Hybrid</div>
-                </div>
               </div>
             </div>
           )}

@@ -1,9 +1,11 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
+  ContactInfo,
   DeviceActionRequest,
   DeviceActionResult,
-  PermissionStatusMap,
+  InstalledAppInfo,
   JarvisSettings,
+  PermissionStatusMap,
 } from '../../types/jarvis';
 
 interface JarvisPermissionsPlugin {
@@ -11,11 +13,30 @@ interface JarvisPermissionsPlugin {
     microphone: 'granted' | 'denied' | 'prompt';
     camera: 'granted' | 'denied' | 'prompt';
     notifications: 'granted' | 'denied' | 'prompt';
+    contacts?: 'granted' | 'denied' | 'prompt';
+    phone?: 'granted' | 'denied' | 'prompt';
     androidIntents?: string;
   }>;
   requestNotificationPermission(): Promise<{ notifications: 'granted' | 'denied' | 'prompt' }>;
   requestMicrophonePermission(): Promise<{ microphone: 'granted' | 'denied' | 'prompt' }>;
   requestCameraPermission(): Promise<{ camera: 'granted' | 'denied' | 'prompt' }>;
+  requestContactsPermission(): Promise<{ contacts: 'granted' | 'denied' | 'prompt' }>;
+  requestPhonePermission(): Promise<{ phone: 'granted' | 'denied' | 'prompt' }>;
+}
+
+export interface NativeUiNode {
+  text: string;
+  viewId?: string;
+  className?: string;
+  clickable: boolean;
+  editable: boolean;
+}
+
+export interface NativeNotificationItem {
+  packageName: string;
+  title: string;
+  text: string;
+  postTime: number;
 }
 
 interface JarvisDevicePlugin {
@@ -41,12 +62,43 @@ interface JarvisDevicePlugin {
   }>;
   shareText(options: { title?: string; text?: string; url?: string }): Promise<{ success: boolean; message: string }>;
   showNotification(options: { title: string; body: string; id?: number }): Promise<{ success: boolean; notificationId: number }>;
+
+  // Accessibility & UI gestures
+  isAccessibilityServiceEnabled(): Promise<{ enabled: boolean; foregroundPackage?: string }>;
+  openAccessibilitySettings(): Promise<{ success: boolean; message: string }>;
+  readScreenText(): Promise<{ success: boolean; foregroundPackage: string; nodeCount: number; nodes: NativeUiNode[] }>;
+  performTap(options: { target: string }): Promise<{ success: boolean; message: string }>;
+  performScroll(options: { direction: 'up' | 'down' }): Promise<{ success: boolean; message: string }>;
+  performInputText(options: { text: string; target?: string }): Promise<{ success: boolean; message: string }>;
+  performGlobalAction(options: { action: 'BACK' | 'HOME' | 'NOTIFICATIONS' }): Promise<{ success: boolean; action: string }>;
+
+  // Background Assistant Foreground Service
+  isBackgroundServiceRunning(): Promise<{ running: boolean }>;
+  startBackgroundService(): Promise<{ success: boolean; running: boolean }>;
+  stopBackgroundService(): Promise<{ success: boolean; running: boolean }>;
+
+  // Notification Listener
+  isNotificationListenerEnabled(): Promise<{ enabled: boolean; connected: boolean }>;
+  openNotificationListenerSettings(): Promise<{ success: boolean }>;
+  getRecentNotifications(): Promise<{ success: boolean; notifications: NativeNotificationItem[] }>;
+
+  // Default Assistant & Device Admin
+  isDefaultAssistant(): Promise<{ isDefault: boolean }>;
+  requestDefaultAssistant(): Promise<{ success: boolean }>;
+  isDeviceAdminActive(): Promise<{ active: boolean }>;
+  requestDeviceAdmin(): Promise<{ success: boolean }>;
+  lockDevice(): Promise<{ success: boolean; message: string }>;
+  requestIgnoreBatteryOptimizations(): Promise<{ success: boolean }>;
+
+  // Discovery & Contacts
+  getInstalledApps(): Promise<{ success: boolean; apps: Array<{ packageName: string; appName: string; isSystemApp: boolean }> }>;
+  searchContacts(options: { query?: string }): Promise<{ success: boolean; contacts: ContactInfo[] }>;
 }
 
-const JarvisNativePermissions = registerPlugin<JarvisPermissionsPlugin>('JarvisPermissions');
+export const JarvisNativePermissions = registerPlugin<JarvisPermissionsPlugin>('JarvisPermissions');
 export const JarvisNativeDevice = registerPlugin<JarvisDevicePlugin>('JarvisDevice');
 
-const ANDROID_APP_PACKAGES: Record<string, { pkg: string; scheme: string; webFallback: string }> = {
+const DEFAULT_KNOWN_PACKAGES: Record<string, { pkg: string; scheme: string; webFallback: string }> = {
   youtube: {
     pkg: 'com.google.android.youtube',
     scheme: 'vnd.youtube://',
@@ -96,12 +148,17 @@ export function isAndroidEnvironment(): boolean {
 }
 
 export async function checkPermissionsStatus(
-  accessibilityAuthorized: boolean,
+  accessibilitySettingEnabled = false,
   screenCaptureActive = false
 ): Promise<PermissionStatusMap> {
   let microphone: PermissionStatusMap['microphone'] = 'prompt';
   let camera: PermissionStatusMap['camera'] = 'prompt';
   let notifications: PermissionStatusMap['notifications'] = 'prompt';
+  let contacts: PermissionStatusMap['contacts'] = 'prompt';
+  let phone: PermissionStatusMap['phone'] = 'prompt';
+  let accessibilityAuthorized: PermissionStatusMap['accessibilityService'] = 'unauthorized';
+  let backgroundService: PermissionStatusMap['backgroundService'] = 'stopped';
+  let deviceAdmin: PermissionStatusMap['deviceAdmin'] = 'inactive';
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -109,9 +166,34 @@ export async function checkPermissionsStatus(
       if (nativeStatus.microphone) microphone = nativeStatus.microphone;
       if (nativeStatus.camera) camera = nativeStatus.camera;
       if (nativeStatus.notifications) notifications = nativeStatus.notifications;
+      if (nativeStatus.contacts) contacts = nativeStatus.contacts;
+      if (nativeStatus.phone) phone = nativeStatus.phone;
     } catch {
-      // Fallback to web permissions below
+      // Ignore
     }
+
+    try {
+      const acc = await JarvisNativeDevice.isAccessibilityServiceEnabled();
+      accessibilityAuthorized = acc.enabled ? 'authorized' : 'unauthorized';
+    } catch {
+      accessibilityAuthorized = accessibilitySettingEnabled ? 'authorized' : 'unauthorized';
+    }
+
+    try {
+      const bg = await JarvisNativeDevice.isBackgroundServiceRunning();
+      backgroundService = bg.running ? 'running' : 'stopped';
+    } catch {
+      // Ignore
+    }
+
+    try {
+      const da = await JarvisNativeDevice.isDeviceAdminActive();
+      deviceAdmin = da.active ? 'active' : 'inactive';
+    } catch {
+      // Ignore
+    }
+  } else {
+    accessibilityAuthorized = accessibilitySettingEnabled ? 'authorized' : 'unauthorized';
   }
 
   if (microphone === 'prompt' && typeof navigator !== 'undefined' && navigator.permissions) {
@@ -119,7 +201,7 @@ export async function checkPermissionsStatus(
       const micPerm = await navigator.permissions.query({ name: 'microphone' as PermissionName });
       microphone = micPerm.state;
     } catch {
-      // preserve prompt
+      // preserve
     }
   }
 
@@ -128,7 +210,7 @@ export async function checkPermissionsStatus(
       const camPerm = await navigator.permissions.query({ name: 'camera' as PermissionName });
       camera = camPerm.state;
     } catch {
-      // preserve prompt
+      // preserve
     }
   }
 
@@ -141,40 +223,31 @@ export async function checkPermissionsStatus(
   const wakeLock =
     typeof navigator !== 'undefined' && 'wakeLock' in navigator ? 'supported' : 'unsupported';
 
-  const canCaptureScreen =
-    typeof navigator !== 'undefined' &&
-    navigator.mediaDevices &&
-    'getDisplayMedia' in navigator.mediaDevices;
-
   return {
     microphone,
     camera,
     notifications,
-    screenCapture: screenCaptureActive
-      ? 'active'
-      : canCaptureScreen || isAndroidEnvironment()
-      ? 'ready'
-      : 'unsupported',
-    androidIntents: isAndroidEnvironment() ? 'ready' : 'simulated_web',
-    accessibilityService: accessibilityAuthorized ? 'authorized' : 'unauthorized',
+    contacts,
+    phone,
+    screenCapture: screenCaptureActive ? 'active' : 'ready',
+    androidIntents: Capacitor.isNativePlatform() ? 'ready' : 'simulated_web',
+    accessibilityService: accessibilityAuthorized,
     wakeLock,
+    backgroundService,
+    deviceAdmin,
   };
 }
 
-export async function requestMicrophonePermission(): Promise<'granted' | 'denied'> {
+export async function requestMicrophonePermission(): Promise<'granted' | 'denied' | 'prompt'> {
   if (Capacitor.isNativePlatform()) {
     try {
       const res = await JarvisNativePermissions.requestMicrophonePermission();
-      return res.microphone === 'granted' ? 'granted' : 'denied';
+      return res.microphone || 'denied';
     } catch {
-      // Fall through to standard getUserMedia below
+      // Fall through
     }
   }
-
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return 'denied';
-    }
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((t) => t.stop());
     return 'granted';
@@ -183,20 +256,16 @@ export async function requestMicrophonePermission(): Promise<'granted' | 'denied
   }
 }
 
-export async function requestCameraPermission(): Promise<'granted' | 'denied'> {
+export async function requestCameraPermission(): Promise<'granted' | 'denied' | 'prompt'> {
   if (Capacitor.isNativePlatform()) {
     try {
       const res = await JarvisNativePermissions.requestCameraPermission();
-      return res.camera === 'granted' ? 'granted' : 'denied';
+      return res.camera || 'denied';
     } catch {
-      // Fall through to standard getUserMedia below
+      // Fall through
     }
   }
-
   try {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return 'denied';
-    }
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     stream.getTracks().forEach((t) => t.stop());
     return 'granted';
@@ -211,10 +280,9 @@ export async function requestNotificationPermission(): Promise<'granted' | 'deni
       const res = await JarvisNativePermissions.requestNotificationPermission();
       return res.notifications || 'denied';
     } catch {
-      // Fall through to standard Notification.requestPermission() below
+      // Fall through
     }
   }
-
   try {
     if (typeof Notification === 'undefined') return 'denied';
     const result = await Notification.requestPermission();
@@ -222,6 +290,30 @@ export async function requestNotificationPermission(): Promise<'granted' | 'deni
   } catch {
     return 'denied';
   }
+}
+
+export async function requestContactsPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await JarvisNativePermissions.requestContactsPermission();
+      return res.contacts || 'denied';
+    } catch {
+      // Ignore
+    }
+  }
+  return 'denied';
+}
+
+export async function requestPhonePermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await JarvisNativePermissions.requestPhonePermission();
+      return res.phone || 'denied';
+    } catch {
+      // Ignore
+    }
+  }
+  return 'denied';
 }
 
 export async function readLiveDeviceTelemetry(): Promise<string> {
@@ -232,7 +324,7 @@ export async function readLiveDeviceTelemetry(): Promise<string> {
       const ramStr = data.totalRamMb ? ` · RAM: ${data.availRamMb || 0}MB free / ${data.totalRamMb}MB` : '';
       return `Android: ${data.manufacturer} ${data.model} (v${data.androidVersion}, SDK ${data.sdkInt}) · Battery: ${data.batteryLevel}% (${chargeStr})${ramStr}`;
     } catch {
-      // Fall through to web telemetry below
+      // Fall through
     }
   }
 
@@ -266,9 +358,45 @@ export async function readLiveDeviceTelemetry(): Promise<string> {
   return parts.join(' · ');
 }
 
+/**
+ * Resolves application package from user aliases, app manager, or built-in registry.
+ */
+export function resolveTargetPackage(targetInput: string, settings: JarvisSettings): { pkg: string; name: string } {
+  const cleanTarget = (targetInput || 'settings').toLowerCase().trim();
+
+  // 1. Check user configured App Integrations
+  if (settings.appIntegrations?.apps) {
+    for (const app of settings.appIntegrations.apps) {
+      if (!app.enabled) continue;
+      if (app.appName.toLowerCase() === cleanTarget || app.packageName.toLowerCase() === cleanTarget) {
+        return { pkg: app.packageName, name: app.appName };
+      }
+      if (app.aliases && app.aliases.some((alias) => cleanTarget.includes(alias.toLowerCase()))) {
+        return { pkg: app.packageName, name: app.appName };
+      }
+    }
+  }
+
+  // 2. Check default known registry
+  const matchedKey = Object.keys(DEFAULT_KNOWN_PACKAGES).find((k) => cleanTarget.includes(k));
+  if (matchedKey) {
+    const meta = DEFAULT_KNOWN_PACKAGES[matchedKey];
+    return { pkg: meta.pkg, name: matchedKey.charAt(0).toUpperCase() + matchedKey.slice(1) };
+  }
+
+  return { pkg: cleanTarget, name: targetInput };
+}
+
+/**
+ * Executes a native or intent-based device action directly on Android or web runtime.
+ */
 export async function executeNativeDeviceAction(
-  result: DeviceActionResult
+  result: DeviceActionResult,
+  settings?: JarvisSettings
 ): Promise<{ success: boolean; message: string }> {
+  const req = result.request;
+  const actionType = req.actionType;
+
   if (!Capacitor.isNativePlatform()) {
     if (result.androidIntentUri) {
       window.open(result.androidIntentUri, '_blank');
@@ -277,16 +405,11 @@ export async function executeNativeDeviceAction(
     return { success: true, message: 'Processed simulated action.' };
   }
 
-  const req = result.request;
-  const actionType = req.actionType;
-
   try {
     if (actionType === 'OPEN_APP' || actionType === 'OPEN_SETTINGS') {
-      const rawTarget = (actionType === 'OPEN_SETTINGS' ? 'settings' : req.targetApp || 'settings').toLowerCase().trim();
-      const matchedKey = Object.keys(ANDROID_APP_PACKAGES).find((k) => rawTarget.includes(k));
-      const appMeta = matchedKey ? ANDROID_APP_PACKAGES[matchedKey] : null;
-      const pkg = appMeta?.pkg || (rawTarget === 'settings' ? 'com.android.settings' : rawTarget);
-      return await JarvisNativeDevice.openApp({ packageName: pkg, targetApp: req.targetApp || 'App' });
+      const rawTarget = actionType === 'OPEN_SETTINGS' ? 'settings' : req.targetApp || 'settings';
+      const resolved = resolveTargetPackage(rawTarget, settings || ({} as JarvisSettings));
+      return await JarvisNativeDevice.openApp({ packageName: resolved.pkg, targetApp: resolved.name });
     }
 
     if (actionType === 'DIAL_NUMBER') {
@@ -322,6 +445,30 @@ export async function executeNativeDeviceAction(
       return { success: true, message: summary };
     }
 
+    if (actionType === 'NAVIGATE_SCREEN') {
+      const gesture = req.navigationGesture || 'SCROLL_DOWN';
+      if (gesture === 'BACK') {
+        const res = await JarvisNativeDevice.performGlobalAction({ action: 'BACK' });
+        return { success: res.success, message: 'Navigated Back' };
+      }
+      if (gesture === 'HOME') {
+        const res = await JarvisNativeDevice.performGlobalAction({ action: 'HOME' });
+        return { success: res.success, message: 'Navigated Home' };
+      }
+      if (gesture === 'SCROLL_DOWN' || gesture === 'SCROLL_UP') {
+        const res = await JarvisNativeDevice.performScroll({ direction: gesture === 'SCROLL_DOWN' ? 'down' : 'up' });
+        return { success: res.success, message: res.message };
+      }
+      if (gesture === 'TAP' && req.label) {
+        const res = await JarvisNativeDevice.performTap({ target: req.label });
+        return { success: res.success, message: res.message };
+      }
+    }
+
+    if (actionType === 'LOCK_DEVICE') {
+      return await JarvisNativeDevice.lockDevice();
+    }
+
     if (result.androidIntentUri) {
       window.open(result.androidIntentUri, '_blank');
       return { success: true, message: 'Intent dispatched.' };
@@ -334,6 +481,9 @@ export async function executeNativeDeviceAction(
   return { success: true, message: 'Action executed successfully.' };
 }
 
+/**
+ * Validates, plans, and stages incoming AI tool actions according to security policy.
+ */
 export async function processDeviceAction(
   request: DeviceActionRequest,
   settings: JarvisSettings,
@@ -355,18 +505,20 @@ export async function processDeviceAction(
 
   const actionType = request.actionType;
 
+  // 1. Device Telemetry
   if (actionType === 'CHECK_DEVICE_STATUS') {
     const telemetry = await readLiveDeviceTelemetry();
     return {
       id,
       request,
       status: 'confirmed',
-      title: 'Device Telemetry Verified',
+      title: 'Device Status Verified',
       detail: telemetry,
       timestamp,
     };
   }
 
+  // 2. Timers
   if (actionType === 'SET_TIMER') {
     const seconds = Math.max(5, Number(request.timerSeconds || 60));
     const label = request.label || 'JARVIS Timer';
@@ -387,12 +539,13 @@ export async function processDeviceAction(
       request,
       status: 'confirmed',
       title: `Timer Active (${seconds}s)`,
-      detail: `Active runtime countdown started for "${label}". Android Clock Intent URI ready.`,
+      detail: `Active runtime countdown started for "${label}".`,
       androidIntentUri: intentUri,
       timestamp,
     };
   }
 
+  // 3. Alarms
   if (actionType === 'SET_ALARM') {
     const hour = Math.min(23, Math.max(0, Number(request.alarmHour ?? 7)));
     const minute = Math.min(59, Math.max(0, Number(request.alarmMinute ?? 0)));
@@ -423,74 +576,72 @@ export async function processDeviceAction(
       request,
       status: isAndroidEnvironment() ? 'intent_dispatched' : 'confirmed',
       title: `Alarm Scheduled for ${timeStr}`,
-      detail: isAndroidEnvironment()
-        ? `Android AlarmClock intent prepared for ${timeStr}. Tap Confirm to open system clock.`
-        : `Scheduled in active session for ${timeStr} (${label}). Native Android SET_ALARM intent URI generated.`,
+      detail: `Android AlarmClock scheduled for ${timeStr}.`,
       androidIntentUri: intentUri,
       timestamp,
     };
   }
 
+  // 4. Open Application (Uses App Integration Manager & Aliases)
   if (actionType === 'OPEN_APP' || actionType === 'OPEN_SETTINGS') {
-    const rawTarget = (
-      actionType === 'OPEN_SETTINGS' ? 'settings' : request.targetApp || 'settings'
-    )
-      .toLowerCase()
-      .trim();
+    const rawTarget = actionType === 'OPEN_SETTINGS' ? 'settings' : request.targetApp || 'settings';
+    const resolved = resolveTargetPackage(rawTarget, settings);
 
-    const matchedKey = Object.keys(ANDROID_APP_PACKAGES).find((k) => rawTarget.includes(k));
-    const appMeta = matchedKey ? ANDROID_APP_PACKAGES[matchedKey] : null;
-    const intentUri = appMeta
-      ? `intent:#Intent;package=${appMeta.pkg};scheme=${appMeta.scheme.replace('://', '')};end`
-      : `intent:#Intent;action=android.intent.action.MAIN;S.query=${encodeURIComponent(rawTarget)};end`;
-
-    if (settings.phoneControl.confirmSensitiveActions) {
+    if (settings.phoneControl.confirmSensitiveActions && request.requiresConfirmation) {
       return {
         id,
         request,
         status: 'awaiting_confirmation',
-        title: `Open ${request.targetApp || 'System Settings'}`,
-        detail: isAndroidEnvironment()
-          ? `Ready to launch Android package ${appMeta?.pkg || rawTarget}. Confirm to dispatch intent.`
-          : `Confirm to launch ${request.targetApp || 'System Settings'} via Android Intent or web target.`,
-        androidIntentUri: appMeta?.webFallback || intentUri,
+        title: `Open ${resolved.name}`,
+        detail: `Ready to launch ${resolved.name} (${resolved.pkg}). Confirm to open.`,
         timestamp,
       };
     }
 
-    if (!settings.phoneControl.confirmSensitiveActions && Capacitor.isNativePlatform()) {
-      JarvisNativeDevice.openApp({
-        packageName: appMeta?.pkg || (rawTarget === 'settings' ? 'com.android.settings' : rawTarget),
-        targetApp: request.targetApp || 'App',
-      }).catch(() => {});
+    if (Capacitor.isNativePlatform()) {
+      JarvisNativeDevice.openApp({ packageName: resolved.pkg, targetApp: resolved.name }).catch(() => {});
     }
 
     return {
       id,
       request,
       status: 'intent_dispatched',
-      title: `Intent Prepared: ${request.targetApp || 'Settings'}`,
-      detail: `Android Intent URI generated (${appMeta?.pkg || rawTarget}).`,
-      androidIntentUri: appMeta?.webFallback || intentUri,
+      title: `Launching ${resolved.name}`,
+      detail: `Launched package ${resolved.pkg} via Android Intent.`,
       timestamp,
     };
   }
 
+  // 5. Phone Calls (Sensitive Action -> Confirmation required)
   if (actionType === 'DIAL_NUMBER') {
-    const target = request.phoneNumberOrContact || '';
+    let target = request.phoneNumberOrContact || '';
+    if (Capacitor.isNativePlatform() && target && !/^\+?\d+$/.test(target)) {
+      try {
+        const contactMatch = await JarvisNativeDevice.searchContacts({ query: target });
+        if (contactMatch.contacts && contactMatch.contacts.length > 0) {
+          const first = contactMatch.contacts[0];
+          target = `${first.displayName} (${first.phoneNumber || target})`;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
     const sanitized = target.replace(/[^\d+]/g, '');
     const telUri = sanitized ? `tel:${sanitized}` : `tel:`;
+
     return {
       id,
       request,
       status: 'awaiting_confirmation',
-      title: `Dial ${target || 'Contact'}`,
-      detail: `Intended recipient: ${target || 'Phone Dialer'}. Android ACTION_DIAL requires explicit user confirmation before opening the dialer.`,
+      title: `Prepare Call: ${target || 'Dialer'}`,
+      detail: `Intended recipient: ${target || 'Phone Dialer'}. Confirm to open dialer.`,
       androidIntentUri: telUri,
       timestamp,
     };
   }
 
+  // 6. SMS Messages (Sensitive Action -> Confirmation required)
   if (actionType === 'SEND_SMS') {
     const target = request.phoneNumberOrContact || '';
     const body = request.label || '';
@@ -500,12 +651,13 @@ export async function processDeviceAction(
       request,
       status: 'awaiting_confirmation',
       title: `Draft SMS to ${target || 'Recipient'}`,
-      detail: `Message: "${body || '(Empty)'}". Requires explicit confirmation before opening SMS app.`,
+      detail: `Message: "${body || '(Empty)'}". Confirm before preparing SMS intent.`,
       androidIntentUri: smsUri,
       timestamp,
     };
   }
 
+  // 7. WhatsApp Messages (Sensitive Action -> Confirmation required)
   if (actionType === 'SEND_WHATSAPP') {
     const target = (request.phoneNumberOrContact || '').replace(/[^\d]/g, '');
     const body = request.label || '';
@@ -517,39 +669,51 @@ export async function processDeviceAction(
       request,
       status: 'awaiting_confirmation',
       title: `Draft WhatsApp to ${request.phoneNumberOrContact || 'Contact'}`,
-      detail: `Draft: "${body || '(Empty)'}". Confirm to open WhatsApp intent.`,
+      detail: `Draft: "${body || '(Empty)'}". Confirm to open WhatsApp.`,
       androidIntentUri: waUri,
       timestamp,
     };
   }
 
+  // 8. Screen Navigation & Accessibility Actions
   if (actionType === 'NAVIGATE_SCREEN') {
     const gesture = request.navigationGesture || 'SCROLL_DOWN';
-    if (!settings.phoneControl.accessibilityBridgeEnabled) {
-      return {
-        id,
-        request,
-        status: 'permission_missing',
-        title: `Accessibility Gesture: ${gesture}`,
-        detail:
-          'AccessibilityService is not enabled. Authorize Accessibility Integration in Settings > Phone Control to allow UI gestures.',
-        timestamp,
-      };
-    }
-
-    // Execute supported scroll/back actions in current viewport and log accessibility event
-    if (gesture === 'SCROLL_DOWN') {
-      window.scrollBy({ top: 300, behavior: 'smooth' });
-    } else if (gesture === 'SCROLL_UP') {
-      window.scrollBy({ top: -300, behavior: 'smooth' });
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const acc = await JarvisNativeDevice.isAccessibilityServiceEnabled();
+        if (!acc.enabled) {
+          return {
+            id,
+            request,
+            status: 'permission_missing',
+            title: 'Accessibility Service Required',
+            detail: 'Please enable JARVIS in Android Accessibility Settings to allow screen navigation.',
+            timestamp,
+          };
+        }
+      } catch {
+        // Continue
+      }
     }
 
     return {
       id,
       request,
       status: 'confirmed',
-      title: `Navigation Gesture: ${gesture}`,
-      detail: `Dispatched user-authorized ${gesture} action via Accessibility Bridge.`,
+      title: `Screen Action: ${gesture}`,
+      detail: `Dispatched ${gesture} via Android Accessibility Bridge.`,
+      timestamp,
+    };
+  }
+
+  // 9. Lock Device (Sensitive Administration Action)
+  if (actionType === 'LOCK_DEVICE') {
+    return {
+      id,
+      request,
+      status: 'awaiting_confirmation',
+      title: 'Lock Phone Screen',
+      detail: 'Confirm to lock the device display immediately.',
       timestamp,
     };
   }
@@ -563,68 +727,3 @@ export async function processDeviceAction(
     timestamp,
   };
 }
-
-export const NATIVE_KOTLIN_BLUEPRINT = `// =====================================================================
-// JARVIS AI — Native Android Architecture (Kotlin + Capacitor Bridge)
-// Package: com.jarvis.ai.assistant
-// =====================================================================
-
-package com.jarvis.ai.assistant.device
-
-import android.content.Context
-import android.content.Intent
-import android.provider.AlarmClock
-import android.net.Uri
-import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
-import android.graphics.Path
-import android.view.accessibility.AccessibilityEvent
-
-class AndroidIntentDispatcher(private val context: Context) {
-
-    fun setSystemAlarm(hour: Int, minutes: Int, message: String): Boolean {
-        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-            putExtra(AlarmClock.EXTRA_HOUR, hour)
-            putExtra(AlarmClock.EXTRA_MINUTES, minutes)
-            putExtra(AlarmClock.EXTRA_MESSAGE, message)
-            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        return if (intent.resolveActivity(context.packageManager) != null) {
-            context.startActivity(intent)
-            true
-        } else false
-    }
-
-    fun openDialerWithConfirmation(phoneNumber: String): Boolean {
-        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNumber")).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(intent)
-        return true
-    }
-
-    fun draftWhatsAppMessage(phone: String, message: String): Boolean {
-        val uri = Uri.parse("https://wa.me/$phone?text=" + Uri.encode(message))
-        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(intent)
-        return true
-    }
-}
-
-class JarvisAccessibilityService : AccessibilityService() {
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Strictly user-authorized gesture execution; no background screen harvesting
-    }
-    override fun onInterrupt() {}
-
-    fun performTap(x: Float, y: Float): Boolean {
-        val path = Path().apply { moveTo(x, y) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
-            .build()
-        return dispatchGesture(gesture, null, null)
-    }
-}`;

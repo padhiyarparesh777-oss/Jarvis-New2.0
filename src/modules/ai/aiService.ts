@@ -22,9 +22,16 @@ export interface StreamCallbacks {
   onMemorySaved?: (fact: string, category: MemoryFact['category']) => void;
   onPlannerAction?: (action: PlannerToolAction) => void;
   onGroundingSources?: (sources: GroundingSource[]) => void;
+  onFirstToken?: (latencyMs: number) => void;
   onComplete: (fullText: string) => void;
   onError: (errorMessage: string, errorCode?: string) => void;
 }
+
+const PRIMARY_CLOUD_URL = 'https://jarvis-ai-backend-pdy8.onrender.com';
+const BACKUP_LOCAL_URL = 'http://127.0.0.1:3000';
+
+let currentFailoverEndpoint: string | null = null;
+let lastCloudProbeTime = 0;
 
 export function getBackendBaseUrl(settings?: JarvisSettings): string {
   // 1. Explicit user setting has highest priority
@@ -34,28 +41,20 @@ export function getBackendBaseUrl(settings?: JarvisSettings): string {
     return sanitized.replace(/\/+$/, '');
   }
 
-  // 2. LocalStorage fallback if settings object not passed
-  try {
-    const raw = localStorage.getItem('jarvis_ai_settings_v2');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const url = parsed?.aiBrain?.backendUrl?.trim();
-      if (url) {
-        const sanitized = !/^https?:\/\//i.test(url) ? `http://${url}` : url;
-        return sanitized.replace(/\/+$/, '');
-      }
-    }
-  } catch {
-    // Ignore storage errors
+  // 2. Active failover endpoint
+  if (currentFailoverEndpoint) {
+    return currentFailoverEndpoint;
   }
 
-  // 3. In native Android APK runtime, default to Termux localhost server
-  if (Capacitor.isNativePlatform()) {
-    return 'http://127.0.0.1:3000';
+  // 3. Settings cloudLocal primary
+  const primary = settings?.cloudLocal?.primaryUrl?.trim();
+  if (primary) {
+    const sanitized = !/^https?:\/\//i.test(primary) ? `http://${primary}` : primary;
+    return sanitized.replace(/\/+$/, '');
   }
 
-  // 4. Default for browser: same-origin (empty string, resolving to /api/...)
-  return '';
+  // 4. Default to Render cloud primary
+  return PRIMARY_CLOUD_URL;
 }
 
 class JarvisAIService {
@@ -143,6 +142,8 @@ class JarvisAIService {
       language: settings.voiceSpeech.language,
       responseStyle: settings.aiBrain.responseStyle,
       personality: settings.aiBrain.personality,
+      addressPreference: settings.personality?.addressPreference || 'adaptive',
+      emotionMode: settings.personality?.emotionMode || 'adaptive',
       memories: relevantMemories,
       permissionsSummary,
       webSearchGrounding: settings.aiBrain.webSearchGrounding,
@@ -150,6 +151,8 @@ class JarvisAIService {
     };
 
     const targetUrl = this.getEndpoint('/api/ai/chat', settings);
+    const requestStart = Date.now();
+    let firstTokenRecorded = false;
 
     try {
       const response = await fetch(targetUrl, {
@@ -176,6 +179,7 @@ class JarvisAIService {
       if (!settings.aiBrain.streamingEnabled) {
         const data = await response.json();
         const fullText = data.text || '';
+        callbacks.onFirstToken?.(Date.now() - requestStart);
         if (Array.isArray(data.functionCalls)) {
           for (const fc of data.functionCalls) {
             this.handleFunctionCall(fc, callbacks);
@@ -190,6 +194,7 @@ class JarvisAIService {
       if (!reader) {
         // Fallback for environments lacking ReadableStream getReader
         const text = await response.text();
+        callbacks.onFirstToken?.(Date.now() - requestStart);
         callbacks.onTextDelta(text, text);
         callbacks.onComplete(text);
         return;
@@ -218,6 +223,10 @@ class JarvisAIService {
             try {
               const event = JSON.parse(jsonStr);
               if (event.type === 'text' && event.delta) {
+                if (!firstTokenRecorded) {
+                  firstTokenRecorded = true;
+                  callbacks.onFirstToken?.(Date.now() - requestStart);
+                }
                 accumulatedText += event.delta;
                 callbacks.onTextDelta(event.delta, accumulatedText);
               } else if (event.type === 'function_call' && event.call) {
@@ -240,6 +249,30 @@ class JarvisAIService {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
+
+      // Automatic local fallback if primary cloud is down and not already on backup
+      if (targetUrl.includes('onrender.com') && currentFailoverEndpoint !== BACKUP_LOCAL_URL) {
+        currentFailoverEndpoint = BACKUP_LOCAL_URL;
+        const fallbackUrl = `${BACKUP_LOCAL_URL}/api/ai/chat`;
+        try {
+          const retryResp = await fetch(fallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: this.abortController?.signal,
+          });
+          if (retryResp.ok) {
+            const data = await retryResp.json();
+            const text = data.text || '';
+            callbacks.onTextDelta(text, text);
+            callbacks.onComplete(text);
+            return;
+          }
+        } catch {
+          // Both failed
+        }
+      }
+
       const rawMsg = err instanceof Error ? err.message : 'Network connection interrupted.';
       callbacks.onError(
         `Failed to connect to backend (${targetUrl}): ${rawMsg}. Verify your Termux/Render server status in Settings > AI Brain.`,
@@ -346,7 +379,14 @@ class JarvisAIService {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, voiceName, language }),
+      body: JSON.stringify({
+        text,
+        voiceName,
+        language,
+        voiceEngine: settings?.voiceSpeech?.voiceEngine || 'elevenlabs',
+        speed: settings?.voiceSpeech?.speechSpeed || 1.0,
+        elevenLabs: settings?.voiceSpeech?.elevenLabs,
+      }),
     });
 
     if (!response.ok) {
@@ -356,6 +396,22 @@ class JarvisAIService {
 
     const data = await response.json();
     return data.audioBase64 || '';
+  }
+
+  async getVoiceDiagnostics(settings?: JarvisSettings): Promise<Record<string, unknown>> {
+    try {
+      const url = this.getEndpoint('/api/ai/tts/diagnostics', settings);
+      const res = await fetch(url);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // Ignore
+    }
+    return {
+      elevenlabs: { configured: false },
+      edgeNeural: { configured: true },
+    };
   }
 }
 
