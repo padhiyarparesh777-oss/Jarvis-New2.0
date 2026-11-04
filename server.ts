@@ -428,6 +428,22 @@ async function generateFreeUnlimitedResponse(
 
 async function startServer() {
   const app = express();
+
+  // Permissive CORS headers for native Android Capacitor WebView (http://localhost, capacitor://localhost) & cross-origin clients
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Requested-With, Accept"
+    );
+    if (req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
   app.use(express.json({ limit: "35mb" }));
 
   // 1. Check AI Backend Status & Model Availability
@@ -488,6 +504,7 @@ async function startServer() {
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
     }
 
     const ai = getGeminiClient();

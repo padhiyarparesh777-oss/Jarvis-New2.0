@@ -16,7 +16,10 @@ import {
   MessageSquare,
   ExternalLink,
   Square,
+  Share2,
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { JarvisNativeDevice } from '../device/deviceControl';
 import {
   ChatAttachment,
   ChatMessage,
@@ -262,6 +265,32 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
     navigator.clipboard?.writeText(msg.content);
     setCopiedMsgId(msg.id);
     setTimeout(() => setCopiedMsgId(null), 1800);
+  };
+
+  const handleShareMessage = async (msg: ChatMessage) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await JarvisNativeDevice.shareText({
+          title: 'JARVIS AI Response',
+          text: msg.content,
+        });
+        return;
+      } catch {
+        // Fallback to web share below
+      }
+    }
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: 'JARVIS AI Response',
+          text: msg.content,
+        });
+      } catch {
+        // User cancelled share
+      }
+    } else {
+      handleCopyMessage(msg);
+    }
   };
 
   // State indicator label above composer when active
@@ -513,6 +542,14 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
                           ) : (
                             <Copy className="w-3.5 h-3.5" />
                           )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShareMessage(msg)}
+                          aria-label="Share message"
+                          className="text-white/45 hover:text-[#FFC928]"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
                         </button>
                         {msg.role === 'user' && (
                           <button

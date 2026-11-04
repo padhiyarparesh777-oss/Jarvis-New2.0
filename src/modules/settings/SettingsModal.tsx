@@ -22,7 +22,9 @@ import {
   Camera,
   RefreshCw,
   Edit3,
+  Server,
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import {
   ActiveTimerOrAlarm,
   AnimationQuality,
@@ -430,6 +432,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Verify</span>
                 </button>
+              </div>
+
+              {/* Backend URL & Runtime Connection */}
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#FFC928] flex items-center gap-2">
+                    <Server className="w-4 h-4 text-[#FFC928]" />
+                    <span>Backend Server Endpoint</span>
+                  </label>
+                  <span
+                    className={`text-[10px] px-2.5 py-0.5 rounded-full border font-medium ${
+                      Capacitor.isNativePlatform()
+                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-400'
+                        : 'bg-blue-950/60 border-blue-500/40 text-blue-400'
+                    }`}
+                  >
+                    {Capacitor.isNativePlatform() ? 'Android Native (APK)' : 'Web Browser'}
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-white/60">
+                  Configure the backend server URL. When running as an APK, point to your local Termux server or hosted Render cloud backend.
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={settings.aiBrain.backendUrl || ''}
+                      placeholder={
+                        Capacitor.isNativePlatform()
+                          ? 'http://127.0.0.1:3000 (Default)'
+                          : 'Same-Origin / Relative (/api)'
+                      }
+                      onChange={(e) => updateBrain({ backendUrl: e.target.value })}
+                      className="flex-1 bg-black border border-white/15 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FFC928] font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={onRefreshBackend}
+                      className="px-3 py-2 min-h-[38px] rounded-lg bg-[#FFC928] text-black font-semibold text-xs hover:bg-[#FFDF70] transition-colors shrink-0 flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Test</span>
+                    </button>
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span className="text-[10px] uppercase tracking-wider text-[#C5A059]">Presets:</span>
+                    <button
+                      type="button"
+                      onClick={() => updateBrain({ backendUrl: 'http://127.0.0.1:3000' })}
+                      className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-[11px] text-white/80 border border-white/10 transition-colors"
+                    >
+                      Termux Localhost (127.0.0.1:3000)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateBrain({ backendUrl: 'https://jarvis-ai-backend.onrender.com' })}
+                      className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-[11px] text-white/80 border border-white/10 transition-colors"
+                    >
+                      Render Cloud Default
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateBrain({ backendUrl: '' })}
+                      className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-[11px] text-white/80 border border-white/10 transition-colors"
+                    >
+                      Same-Origin (Web)
+                    </button>
+                  </div>
+
+                  {backendStatus?.latencyMs !== undefined && (
+                    <div className="text-[11px] text-emerald-400 flex items-center gap-1.5 pt-1">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Connected · Latency: {backendStatus.latencyMs}ms</span>
+                      {backendStatus.resolvedUrl && (
+                        <span className="text-white/40">({backendStatus.resolvedUrl})</span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">

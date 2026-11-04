@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import {
   BackendStatus,
   ChatAttachment,
@@ -25,24 +26,74 @@ export interface StreamCallbacks {
   onError: (errorMessage: string, errorCode?: string) => void;
 }
 
+export function getBackendBaseUrl(settings?: JarvisSettings): string {
+  // 1. Explicit user setting has highest priority
+  const configured = settings?.aiBrain?.backendUrl?.trim();
+  if (configured) {
+    const sanitized = !/^https?:\/\//i.test(configured) ? `http://${configured}` : configured;
+    return sanitized.replace(/\/+$/, '');
+  }
+
+  // 2. LocalStorage fallback if settings object not passed
+  try {
+    const raw = localStorage.getItem('jarvis_ai_settings_v2');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const url = parsed?.aiBrain?.backendUrl?.trim();
+      if (url) {
+        const sanitized = !/^https?:\/\//i.test(url) ? `http://${url}` : url;
+        return sanitized.replace(/\/+$/, '');
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
+
+  // 3. In native Android APK runtime, default to Termux localhost server
+  if (Capacitor.isNativePlatform()) {
+    return 'http://127.0.0.1:3000';
+  }
+
+  // 4. Default for browser: same-origin (empty string, resolving to /api/...)
+  return '';
+}
+
 class JarvisAIService {
   private abortController: AbortController | null = null;
 
-  async checkStatus(): Promise<BackendStatus> {
+  getEndpoint(path: string, settings?: JarvisSettings): string {
+    const base = getBackendBaseUrl(settings);
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return base ? `${base}${cleanPath}` : cleanPath;
+  }
+
+  async checkStatus(settings?: JarvisSettings): Promise<BackendStatus> {
+    const targetUrl = this.getEndpoint('/api/ai/status', settings);
     try {
-      const response = await fetch('/api/ai/status');
+      const startTime = Date.now();
+      const response = await fetch(targetUrl);
+      const latencyMs = Date.now() - startTime;
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status} from ${targetUrl}`);
       }
-      return await response.json();
+
+      const data = await response.json();
+      return {
+        ...data,
+        latencyMs,
+        resolvedUrl: targetUrl,
+      };
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unable to reach AI backend.';
       return {
         configured: false,
-        provider: 'Google Gemini',
+        provider: 'Unavailable',
         models: ['gemini-3.8-flash', 'gemini-3.1-flash-lite'],
         ttsModel: 'gemini-3.8-flash-lite-tts',
         transcribeModel: 'gemini-3.5-transcribe',
-        message: err instanceof Error ? err.message : 'Unable to reach AI backend.',
+        message: `${errorMsg} (Target: ${targetUrl || 'Same-Origin'}). If running in Termux, verify 'npm run dev' or configure your Render backend URL in Settings > AI Brain.`,
+        resolvedUrl: targetUrl,
       };
     }
   }
@@ -98,8 +149,10 @@ class JarvisAIService {
       stream: settings.aiBrain.streamingEnabled,
     };
 
+    const targetUrl = this.getEndpoint('/api/ai/chat', settings);
+
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -135,7 +188,10 @@ class JarvisAIService {
 
       const reader = response.body?.getReader();
       if (!reader) {
-        callbacks.onError('Streaming response body unavailable.');
+        // Fallback for environments lacking ReadableStream getReader
+        const text = await response.text();
+        callbacks.onTextDelta(text, text);
+        callbacks.onComplete(text);
         return;
       }
 
@@ -148,30 +204,33 @@ class JarvisAIService {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() || '';
 
-        for (const block of lines) {
-          const line = block.trim();
-          if (!line.startsWith('data:')) continue;
-          const jsonStr = line.replace(/^data:\s*/, '');
-          if (!jsonStr) continue;
+        for (const block of blocks) {
+          const lines = block.split(/\r?\n/);
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line.startsWith('data:')) continue;
+            const jsonStr = line.replace(/^data:\s*/, '');
+            if (!jsonStr) continue;
 
-          try {
-            const event = JSON.parse(jsonStr);
-            if (event.type === 'text' && event.delta) {
-              accumulatedText += event.delta;
-              callbacks.onTextDelta(event.delta, accumulatedText);
-            } else if (event.type === 'function_call' && event.call) {
-              this.handleFunctionCall(event.call, callbacks);
-            } else if (event.type === 'grounding' && Array.isArray(event.sources)) {
-              callbacks.onGroundingSources?.(event.sources);
-            } else if (event.type === 'error') {
-              callbacks.onError(event.message || 'Streaming error occurred.');
-              return;
+            try {
+              const event = JSON.parse(jsonStr);
+              if (event.type === 'text' && event.delta) {
+                accumulatedText += event.delta;
+                callbacks.onTextDelta(event.delta, accumulatedText);
+              } else if (event.type === 'function_call' && event.call) {
+                this.handleFunctionCall(event.call, callbacks);
+              } else if (event.type === 'grounding' && Array.isArray(event.sources)) {
+                callbacks.onGroundingSources?.(event.sources);
+              } else if (event.type === 'error') {
+                callbacks.onError(event.message || 'Streaming error occurred.');
+                return;
+              }
+            } catch {
+              // Ignore malformed chunk
             }
-          } catch {
-            // Ignore malformed SSE chunk
           }
         }
       }
@@ -181,8 +240,9 @@ class JarvisAIService {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return;
       }
+      const rawMsg = err instanceof Error ? err.message : 'Network connection interrupted.';
       callbacks.onError(
-        err instanceof Error ? err.message : 'Network connection interrupted.',
+        `Failed to connect to backend (${targetUrl}): ${rawMsg}. Verify your Termux/Render server status in Settings > AI Brain.`,
         'NETWORK_ERROR'
       );
     } finally {
@@ -235,9 +295,11 @@ class JarvisAIService {
   async analyzeScreenImage(
     imageBase64: string,
     mimeType: string,
-    prompt?: string
+    prompt?: string,
+    settings?: JarvisSettings
   ): Promise<string> {
-    const response = await fetch('/api/ai/screen-analyze', {
+    const url = this.getEndpoint('/api/ai/screen-analyze', settings);
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageBase64, mimeType, prompt }),
@@ -255,9 +317,11 @@ class JarvisAIService {
   async transcribeAudio(
     audioBase64: string,
     mimeType: string,
-    language: string
+    language: string,
+    settings?: JarvisSettings
   ): Promise<string> {
-    const response = await fetch('/api/ai/transcribe', {
+    const url = this.getEndpoint('/api/ai/transcribe', settings);
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ audioBase64, mimeType, language }),
@@ -275,9 +339,11 @@ class JarvisAIService {
   async synthesizeSpeech(
     text: string,
     voiceName: string,
-    language = 'auto'
+    language = 'auto',
+    settings?: JarvisSettings
   ): Promise<string> {
-    const response = await fetch('/api/ai/tts', {
+    const url = this.getEndpoint('/api/ai/tts', settings);
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, voiceName, language }),

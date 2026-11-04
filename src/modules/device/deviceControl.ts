@@ -1,9 +1,50 @@
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import {
   DeviceActionRequest,
   DeviceActionResult,
   PermissionStatusMap,
   JarvisSettings,
 } from '../../types/jarvis';
+
+interface JarvisPermissionsPlugin {
+  getPermissionsStatus(): Promise<{
+    microphone: 'granted' | 'denied' | 'prompt';
+    camera: 'granted' | 'denied' | 'prompt';
+    notifications: 'granted' | 'denied' | 'prompt';
+    androidIntents?: string;
+  }>;
+  requestNotificationPermission(): Promise<{ notifications: 'granted' | 'denied' | 'prompt' }>;
+  requestMicrophonePermission(): Promise<{ microphone: 'granted' | 'denied' | 'prompt' }>;
+  requestCameraPermission(): Promise<{ camera: 'granted' | 'denied' | 'prompt' }>;
+}
+
+interface JarvisDevicePlugin {
+  openApp(options: { packageName: string; targetApp?: string }): Promise<{ success: boolean; message: string }>;
+  openDialer(options: { phoneNumber?: string }): Promise<{ success: boolean; message: string }>;
+  sendSms(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
+  sendWhatsApp(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
+  setAlarm(options: { hour: number; minute: number; label?: string; skipUi?: boolean }): Promise<{ success: boolean; message: string }>;
+  setTimer(options: { seconds: number; label?: string; skipUi?: boolean }): Promise<{ success: boolean; message: string }>;
+  getDeviceTelemetry(): Promise<{
+    batteryLevel: number;
+    isCharging: boolean;
+    chargeType: string;
+    manufacturer: string;
+    model: string;
+    device: string;
+    androidVersion: string;
+    sdkInt: number;
+    totalRamMb?: number;
+    availRamMb?: number;
+    lowMemory?: boolean;
+    platform: string;
+  }>;
+  shareText(options: { title?: string; text?: string; url?: string }): Promise<{ success: boolean; message: string }>;
+  showNotification(options: { title: string; body: string; id?: number }): Promise<{ success: boolean; notificationId: number }>;
+}
+
+const JarvisNativePermissions = registerPlugin<JarvisPermissionsPlugin>('JarvisPermissions');
+export const JarvisNativeDevice = registerPlugin<JarvisDevicePlugin>('JarvisDevice');
 
 const ANDROID_APP_PACKAGES: Record<string, { pkg: string; scheme: string; webFallback: string }> = {
   youtube: {
@@ -49,6 +90,7 @@ const ANDROID_APP_PACKAGES: Record<string, { pkg: string; scheme: string; webFal
 };
 
 export function isAndroidEnvironment(): boolean {
+  if (Capacitor.isNativePlatform()) return true;
   if (typeof navigator === 'undefined') return false;
   return /Android/i.test(navigator.userAgent);
 }
@@ -61,24 +103,38 @@ export async function checkPermissionsStatus(
   let camera: PermissionStatusMap['camera'] = 'prompt';
   let notifications: PermissionStatusMap['notifications'] = 'prompt';
 
-  if (typeof navigator !== 'undefined' && navigator.permissions) {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const nativeStatus = await JarvisNativePermissions.getPermissionsStatus();
+      if (nativeStatus.microphone) microphone = nativeStatus.microphone;
+      if (nativeStatus.camera) camera = nativeStatus.camera;
+      if (nativeStatus.notifications) notifications = nativeStatus.notifications;
+    } catch {
+      // Fallback to web permissions below
+    }
+  }
+
+  if (microphone === 'prompt' && typeof navigator !== 'undefined' && navigator.permissions) {
     try {
       const micPerm = await navigator.permissions.query({ name: 'microphone' as PermissionName });
       microphone = micPerm.state;
     } catch {
-      microphone = 'prompt';
+      // preserve prompt
     }
+  }
+
+  if (camera === 'prompt' && typeof navigator !== 'undefined' && navigator.permissions) {
     try {
       const camPerm = await navigator.permissions.query({ name: 'camera' as PermissionName });
       camera = camPerm.state;
     } catch {
-      camera = 'prompt';
+      // preserve prompt
     }
   }
 
-  if (typeof Notification !== 'undefined') {
+  if (notifications === 'prompt' && typeof Notification !== 'undefined') {
     notifications = Notification.permission === 'default' ? 'prompt' : Notification.permission;
-  } else {
+  } else if (!Capacitor.isNativePlatform() && typeof Notification === 'undefined') {
     notifications = 'unsupported';
   }
 
@@ -106,6 +162,15 @@ export async function checkPermissionsStatus(
 }
 
 export async function requestMicrophonePermission(): Promise<'granted' | 'denied'> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await JarvisNativePermissions.requestMicrophonePermission();
+      return res.microphone === 'granted' ? 'granted' : 'denied';
+    } catch {
+      // Fall through to standard getUserMedia below
+    }
+  }
+
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       return 'denied';
@@ -119,6 +184,15 @@ export async function requestMicrophonePermission(): Promise<'granted' | 'denied
 }
 
 export async function requestCameraPermission(): Promise<'granted' | 'denied'> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await JarvisNativePermissions.requestCameraPermission();
+      return res.camera === 'granted' ? 'granted' : 'denied';
+    } catch {
+      // Fall through to standard getUserMedia below
+    }
+  }
+
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       return 'denied';
@@ -132,6 +206,15 @@ export async function requestCameraPermission(): Promise<'granted' | 'denied'> {
 }
 
 export async function requestNotificationPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await JarvisNativePermissions.requestNotificationPermission();
+      return res.notifications || 'denied';
+    } catch {
+      // Fall through to standard Notification.requestPermission() below
+    }
+  }
+
   try {
     if (typeof Notification === 'undefined') return 'denied';
     const result = await Notification.requestPermission();
@@ -142,6 +225,17 @@ export async function requestNotificationPermission(): Promise<'granted' | 'deni
 }
 
 export async function readLiveDeviceTelemetry(): Promise<string> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const data = await JarvisNativeDevice.getDeviceTelemetry();
+      const chargeStr = data.isCharging ? `Charging (${data.chargeType})` : 'Discharging';
+      const ramStr = data.totalRamMb ? ` · RAM: ${data.availRamMb || 0}MB free / ${data.totalRamMb}MB` : '';
+      return `Android: ${data.manufacturer} ${data.model} (v${data.androidVersion}, SDK ${data.sdkInt}) · Battery: ${data.batteryLevel}% (${chargeStr})${ramStr}`;
+    } catch {
+      // Fall through to web telemetry below
+    }
+  }
+
   const parts: string[] = [];
   const isAndroid = isAndroidEnvironment();
   parts.push(`Platform: ${isAndroid ? 'Android Mobile OS' : 'Web Runtime'}`);
@@ -170,6 +264,74 @@ export async function readLiveDeviceTelemetry(): Promise<string> {
   }
 
   return parts.join(' · ');
+}
+
+export async function executeNativeDeviceAction(
+  result: DeviceActionResult
+): Promise<{ success: boolean; message: string }> {
+  if (!Capacitor.isNativePlatform()) {
+    if (result.androidIntentUri) {
+      window.open(result.androidIntentUri, '_blank');
+      return { success: true, message: 'Dispatched intent via web browser.' };
+    }
+    return { success: true, message: 'Processed simulated action.' };
+  }
+
+  const req = result.request;
+  const actionType = req.actionType;
+
+  try {
+    if (actionType === 'OPEN_APP' || actionType === 'OPEN_SETTINGS') {
+      const rawTarget = (actionType === 'OPEN_SETTINGS' ? 'settings' : req.targetApp || 'settings').toLowerCase().trim();
+      const matchedKey = Object.keys(ANDROID_APP_PACKAGES).find((k) => rawTarget.includes(k));
+      const appMeta = matchedKey ? ANDROID_APP_PACKAGES[matchedKey] : null;
+      const pkg = appMeta?.pkg || (rawTarget === 'settings' ? 'com.android.settings' : rawTarget);
+      return await JarvisNativeDevice.openApp({ packageName: pkg, targetApp: req.targetApp || 'App' });
+    }
+
+    if (actionType === 'DIAL_NUMBER') {
+      return await JarvisNativeDevice.openDialer({ phoneNumber: req.phoneNumberOrContact });
+    }
+
+    if (actionType === 'SEND_SMS') {
+      return await JarvisNativeDevice.sendSms({ phoneNumber: req.phoneNumberOrContact, message: req.label });
+    }
+
+    if (actionType === 'SEND_WHATSAPP') {
+      return await JarvisNativeDevice.sendWhatsApp({ phoneNumber: req.phoneNumberOrContact, message: req.label });
+    }
+
+    if (actionType === 'SET_ALARM') {
+      return await JarvisNativeDevice.setAlarm({
+        hour: req.alarmHour ?? 7,
+        minute: req.alarmMinute ?? 0,
+        label: req.label || 'JARVIS Alarm',
+      });
+    }
+
+    if (actionType === 'SET_TIMER') {
+      return await JarvisNativeDevice.setTimer({
+        seconds: req.timerSeconds ?? 60,
+        label: req.label || 'JARVIS Timer',
+      });
+    }
+
+    if (actionType === 'CHECK_DEVICE_STATUS') {
+      const telemetry = await JarvisNativeDevice.getDeviceTelemetry();
+      const summary = `Battery: ${telemetry.batteryLevel}% (${telemetry.isCharging ? 'Charging' : 'Battery'}) · ${telemetry.manufacturer} ${telemetry.model} (Android ${telemetry.androidVersion})`;
+      return { success: true, message: summary };
+    }
+
+    if (result.androidIntentUri) {
+      window.open(result.androidIntentUri, '_blank');
+      return { success: true, message: 'Intent dispatched.' };
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    return { success: false, message: errorMsg };
+  }
+
+  return { success: true, message: 'Action executed successfully.' };
 }
 
 export async function processDeviceAction(
@@ -216,6 +378,10 @@ export async function processDeviceAction(
       onScheduleTimerOrAlarm('timer', label, seconds);
     }
 
+    if (Capacitor.isNativePlatform()) {
+      JarvisNativeDevice.setTimer({ seconds, label }).catch(() => {});
+    }
+
     return {
       id,
       request,
@@ -246,6 +412,10 @@ export async function processDeviceAction(
 
     if (onScheduleTimerOrAlarm) {
       onScheduleTimerOrAlarm('alarm', `${label} (${timeStr})`, diffSeconds);
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      JarvisNativeDevice.setAlarm({ hour, minute, label }).catch(() => {});
     }
 
     return {
@@ -286,6 +456,13 @@ export async function processDeviceAction(
         androidIntentUri: appMeta?.webFallback || intentUri,
         timestamp,
       };
+    }
+
+    if (!settings.phoneControl.confirmSensitiveActions && Capacitor.isNativePlatform()) {
+      JarvisNativeDevice.openApp({
+        packageName: appMeta?.pkg || (rawTarget === 'settings' ? 'com.android.settings' : rawTarget),
+        targetApp: request.targetApp || 'App',
+      }).catch(() => {});
     }
 
     return {

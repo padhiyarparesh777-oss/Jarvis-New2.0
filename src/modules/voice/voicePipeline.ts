@@ -384,7 +384,7 @@ class JarvisVoicePipeline {
             this.cleanupMic();
             callbacks.onFinalTranscript(latestWebSpeechTranscript.trim());
           } else {
-            await this.finishWithGeminiTranscribe(settings.voiceSpeech.language, callbacks);
+            await this.finishWithGeminiTranscribe(settings.voiceSpeech.language, callbacks, settings);
           }
         };
 
@@ -412,7 +412,8 @@ class JarvisVoicePipeline {
       onFinalTranscript: (text: string) => void;
       onError: (message: string) => void;
     },
-    currentInterim: string
+    currentInterim: string,
+    settings?: JarvisSettings
   ): Promise<void> {
     if (!this.isListeningFlag) return;
     this.playSubtleTone('listen-end');
@@ -423,7 +424,7 @@ class JarvisVoicePipeline {
       return;
     }
 
-    await this.finishWithGeminiTranscribe(language, callbacks);
+    await this.finishWithGeminiTranscribe(language, callbacks, settings);
   }
 
   private async finishWithGeminiTranscribe(
@@ -432,7 +433,8 @@ class JarvisVoicePipeline {
       onInterimTranscript: (text: string) => void;
       onFinalTranscript: (text: string) => void;
       onError: (message: string) => void;
-    }
+    },
+    settings?: JarvisSettings
   ): Promise<void> {
     const chunks = [...this.recordedChunks];
     const recorderMime = this.mediaRecorder?.mimeType || 'audio/webm';
@@ -448,7 +450,7 @@ class JarvisVoicePipeline {
       const blob = new Blob(chunks, { type: recorderMime });
       const base64 = await this.blobToBase64(blob);
       const cleanMime = recorderMime.split(';')[0] || 'audio/webm';
-      const transcript = await aiService.transcribeAudio(base64, cleanMime, language);
+      const transcript = await aiService.transcribeAudio(base64, cleanMime, language, settings);
       callbacks.onFinalTranscript(transcript.trim());
     } catch (err) {
       callbacks.onError(err instanceof Error ? err.message : 'Voice transcription failed.');
@@ -523,7 +525,8 @@ class JarvisVoicePipeline {
       const base64Audio = await aiService.synthesizeSpeech(
         cleanText,
         settings.voiceSpeech.geminiVoice,
-        settings.voiceSpeech.language
+        settings.voiceSpeech.language,
+        settings
       );
 
       if (!this.isSpeakingFlag) {

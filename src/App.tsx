@@ -32,6 +32,8 @@ import {
 import {
   checkPermissionsStatus,
   processDeviceAction,
+  executeNativeDeviceAction,
+  JarvisNativeDevice,
 } from './modules/device/deviceControl';
 import { aiService, PlannerToolAction } from './modules/ai/aiService';
 import { voicePipeline } from './modules/voice/voicePipeline';
@@ -150,9 +152,9 @@ export default function App() {
   );
 
   const refreshBackendStatus = useCallback(async () => {
-    const status = await aiService.checkStatus();
+    const status = await aiService.checkStatus(settings);
     setBackendStatus(status);
-  }, []);
+  }, [settings]);
 
   const refreshPermissions = useCallback(async () => {
     const perms = await checkPermissionsStatus(
@@ -180,6 +182,12 @@ export default function App() {
             changed = true;
             if (!isCurrentlyQuietHours(settings) && settings.notifications.soundAlertsEnabled) {
               voicePipeline.playSubtleTone('alarm');
+            }
+            if (settings.notifications.remindersEnabled) {
+              JarvisNativeDevice.showNotification({
+                title: 'JARVIS Alert',
+                body: `${item.label} complete`,
+              }).catch(() => {});
             }
             setLiveCaption(`${item.label} complete`);
             scheduleCaptionFadeOut(5500);
@@ -583,6 +591,31 @@ export default function App() {
     scheduleCaptionFadeOut(2000);
   }, [scheduleCaptionFadeOut]);
 
+  // Android hardware back button handler (handles modals, drawers, banners, speech interrupt)
+  useEffect(() => {
+    const onAndroidBackButton = () => {
+      if (isSettingsOpen) {
+        setIsSettingsOpen(false);
+        return;
+      }
+      if (isChatDrawerOpen) {
+        setIsChatDrawerOpen(false);
+        return;
+      }
+      if (pendingDeviceAction) {
+        setPendingDeviceAction(null);
+        return;
+      }
+      if (interactionState !== 'idle') {
+        handleStopActiveAction();
+        return;
+      }
+    };
+
+    window.addEventListener('jarvis:backbutton', onAndroidBackButton);
+    return () => window.removeEventListener('jarvis:backbutton', onAndroidBackButton);
+  }, [isSettingsOpen, isChatDrawerOpen, pendingDeviceAction, interactionState, handleStopActiveAction]);
+
   const handleCoreTap = useCallback(() => {
     if (interactionState === 'speaking' || interactionState === 'thinking') {
       handleStopActiveAction();
@@ -604,7 +637,8 @@ export default function App() {
           },
           onError: (errMsg) => triggerTransientErrorState(errMsg),
         },
-        interimTranscriptRef.current
+        interimTranscriptRef.current,
+        settings
       );
       return;
     }
@@ -641,7 +675,8 @@ export default function App() {
           },
           onError: (errMsg) => triggerTransientErrorState(errMsg),
         },
-        interimTranscriptRef.current
+        interimTranscriptRef.current,
+        settings
       );
     }
   }, [
@@ -797,18 +832,19 @@ export default function App() {
               <div className="font-semibold text-[#FFC928]">{pendingDeviceAction.title}</div>
               <div className="text-white/70 truncate">{pendingDeviceAction.detail}</div>
             </div>
-            {pendingDeviceAction.androidIntentUri && (
-              <a
-                href={pendingDeviceAction.androidIntentUri}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setPendingDeviceAction(null)}
-                className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#FFC928] text-black font-semibold inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-              >
-                <span>Confirm</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            )}
+            <button
+              type="button"
+              onClick={async () => {
+                const action = pendingDeviceAction;
+                setPendingDeviceAction(null);
+                const res = await executeNativeDeviceAction(action);
+                setCaptionSubtext(res.message);
+              }}
+              className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#FFC928] text-black font-semibold inline-flex items-center gap-1 whitespace-nowrap shrink-0 hover:bg-[#FFDF70] transition-colors"
+            >
+              <span>Confirm</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
             <button
               type="button"
               onClick={() => setPendingDeviceAction(null)}
@@ -881,7 +917,7 @@ export default function App() {
           handleExecuteDeviceAction(req);
         }}
         onAnalyzeScreen={(b64, mime, prompt) =>
-          aiService.analyzeScreenImage(b64, mime, prompt)
+          aiService.analyzeScreenImage(b64, mime, prompt, settings)
         }
         backendStatus={backendStatus}
         onRefreshBackend={refreshBackendStatus}

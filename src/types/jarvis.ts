@@ -107,6 +107,7 @@ export interface JarvisSettings {
     thinkingLevel: 'LOW' | 'MEDIUM' | 'HIGH';
     streamingEnabled: boolean;
     webSearchGrounding: boolean;
+    backendUrl: string;
   };
   voiceSpeech: {
     language: LanguageMode;
@@ -231,6 +232,8 @@ export interface BackendStatus {
   ttsModel: string;
   transcribeModel: string;
   message: string;
+  latencyMs?: number;
+  resolvedUrl?: string;
 }
 
 export interface AudioReactionMetrics {

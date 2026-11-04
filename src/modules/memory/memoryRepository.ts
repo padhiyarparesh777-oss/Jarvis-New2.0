@@ -31,6 +31,7 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
     thinkingLevel: 'LOW',
     streamingEnabled: true,
     webSearchGrounding: true,
+    backendUrl: '',
   },
   voiceSpeech: {
     language: 'auto',
@@ -165,6 +166,10 @@ export const memoryRepository = {
           ...DEFAULT_SETTINGS.aiBrain,
           ...(parsed.aiBrain || {}),
           provider: normalizedProvider,
+          backendUrl:
+            typeof parsed.aiBrain?.backendUrl === 'string'
+              ? parsed.aiBrain.backendUrl
+              : '',
         },
         voiceSpeech: {
           ...DEFAULT_SETTINGS.voiceSpeech,
