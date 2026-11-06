@@ -68,6 +68,7 @@ import {
 } from '../device/deviceControl';
 import { voiceEngine } from '../voice/VoiceEngine';
 import { aiService } from '../ai/aiService';
+import { API_PLUGIN_CATALOG, beginApiPluginConnection, getApiPluginConnectUrl, type ApiPluginId } from '../plugins/pluginHub';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -207,6 +208,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // App scanner state
   const [scannedApps, setScannedApps] = useState<Array<{ packageName: string; appName: string; isSystemApp: boolean }>>([]);
   const [isScanningApps, setIsScanningApps] = useState(false);
+  const [apiPluginFeedback, setApiPluginFeedback] = useState('');
   const [newAliasText, setNewAliasText] = useState('');
   const [selectedAppForAlias, setSelectedAppForAlias] = useState('');
 
@@ -365,6 +367,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } finally {
       setIsScanningApps(false);
     }
+  };
+
+  const handleConnectApiPlugin = (pluginId: ApiPluginId) => {
+    if (!getApiPluginConnectUrl(pluginId)) {
+      setApiPluginFeedback(`Setup required: configure the server-owned OAuth start URL for ${pluginId}. Keep client secrets and tokens on the backend, never in the APK.`);
+      return;
+    }
+    setApiPluginFeedback(beginApiPluginConnection(pluginId)
+      ? `Opened ${pluginId} authorization. Finish consent in the browser; backend owns connection status.`
+      : 'Could not open the authorization page.');
   };
 
   const handleSearchContacts = async () => {
@@ -1268,6 +1280,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <RefreshCw className={`w-3.5 h-3.5 ${isScanningApps ? 'animate-spin' : ''}`} />
                   <span>{isScanningApps ? 'Scanning...' : 'Scan Installed Apps'}</span>
                 </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-[#C5A059]">API Plugin Marketplace</div>
+                  <p className="text-[11px] text-white/50 mt-1">OAuth-based cloud integrations. Provider tokens must remain on the backend.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {API_PLUGIN_CATALOG.map((plugin) => {
+                    const configured = Boolean(getApiPluginConnectUrl(plugin.id));
+                    return <div key={plugin.id} className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-white">{plugin.name}</div>
+                        <span className={`text-[9px] px-2 py-1 rounded-full border ${configured ? 'text-emerald-300 border-emerald-500/30' : 'text-amber-300 border-amber-500/30'}`}>{configured ? 'OAuth URL configured' : 'Setup required'}</span>
+                      </div>
+                      <p className="text-[11px] text-white/55">{plugin.description}</p>
+                      <div className="flex flex-wrap gap-1">{plugin.services.map((service) => <span key={service} className="text-[9px] px-2 py-1 rounded-full bg-white/5 text-white/60">{service}</span>)}</div>
+                      <button type="button" onClick={() => handleConnectApiPlugin(plugin.id)} className="w-full px-3 py-2 rounded-lg bg-[#FFC928] text-black text-xs font-semibold">{configured ? 'Connect account' : 'Configure connection'}</button>
+                      <div className="text-[9px] text-white/35 font-mono">{plugin.connectUrlEnv}</div>
+                    </div>;
+                  })}
+                </div>
+                {apiPluginFeedback && <p role="status" className="text-[11px] text-[#FFC928] p-3 rounded-lg bg-[#FFC928]/5 border border-[#FFC928]/20">{apiPluginFeedback}</p>}
               </div>
 
               {/* App Integrations List */}
