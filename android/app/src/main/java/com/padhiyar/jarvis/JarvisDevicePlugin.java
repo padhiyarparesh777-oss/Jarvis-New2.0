@@ -1095,11 +1095,9 @@ public class JarvisDevicePlugin extends Plugin {
                 return;
             }
             Intent intent = new Intent(getContext(), JarvisFloatingOverlayService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                getContext().startForegroundService(intent);
-            } else {
-                getContext().startService(intent);
-            }
+            // This is a short-lived overlay service, started only from an explicit
+            // foreground user action; it does not use microphone or foreground-service APIs.
+            getContext().startService(intent);
             JSObject ret = new JSObject();
             ret.put("success", true);
             call.resolve(ret);
