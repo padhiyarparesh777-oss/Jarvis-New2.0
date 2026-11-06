@@ -438,7 +438,7 @@ public class JarvisDevicePlugin extends Plugin {
         try {
             Intent intent;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                intent = new Intent(Settings.Panel.ACTION_BLUETOOTH);
+                intent = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
             } else {
                 intent = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
             }
