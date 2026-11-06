@@ -35,6 +35,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(JarvisPermissionsPlugin.class);
         registerPlugin(JarvisDevicePlugin.class);
+        registerPlugin(JarvisHardwarePlugin.class);
         super.onCreate(savedInstanceState);
 
         // Configure WebView settings for audio responsiveness and media permissions
