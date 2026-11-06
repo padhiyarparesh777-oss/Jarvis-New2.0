@@ -6,6 +6,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Settings, ExternalLink, X, Mic, ChevronUp, ChevronDown, Radio, Waves } from 'lucide-react';
+import { processOfflineCommand } from './modules/offline/OfflineCommandEngine';
+import { isOfflineMode } from './modules/offline/OfflineModeManager';
 import {
   ActiveTimerOrAlarm,
   AutomationLog,
@@ -519,6 +521,46 @@ export default function App() {
 
       const currentMessages = activeThread ? [...activeThread.messages, userMessage] : [userMessage];
       appendMessageToActiveThread(userMessage);
+
+      // Deterministic local execution keeps essential device controls available offline.
+      // Attachments and unknown commands continue through the normal AI path when online.
+      if (cleanInput && isOfflineMode()) {
+        const localResult = processOfflineCommand(cleanInput);
+        if (localResult.handled) {
+          if (localResult.action) {
+            await handleExecuteDeviceAction(localResult.action);
+          }
+          const assistantMsg: ChatMessage = {
+            id: `msg-${Date.now()}-offline`,
+            role: 'assistant',
+            content: localResult.reply,
+            timestamp: Date.now(),
+          };
+          appendMessageToActiveThread(assistantMsg);
+          setLiveCaption(localResult.reply);
+          setCaptionSubtext('OFFLINE MODE · Local command engine');
+          if (settings.voiceSpeech.voiceOutputEnabled) {
+            voiceEngine.speak(localResult.reply, settings);
+          } else {
+            setInteractionState('idle');
+            scheduleCaptionFadeOut(6500);
+          }
+          return;
+        }
+        setCaptionSubtext('OFFLINE MODE · Limited local commands available');
+        const offlineNotice = 'Internet connection unavailable. I can still control supported phone features locally, but cloud AI, web search and online services are unavailable.';
+        const assistantMsg: ChatMessage = {
+          id: `msg-${Date.now()}-offline`,
+          role: 'assistant',
+          content: offlineNotice,
+          timestamp: Date.now(),
+        };
+        appendMessageToActiveThread(assistantMsg);
+        setLiveCaption(offlineNotice);
+        setInteractionState('idle');
+        scheduleCaptionFadeOut(6500);
+        return;
+      }
 
       const permSummary = `Microphone: ${permissions.microphone}, Camera: ${permissions.camera}, Notifications: ${permissions.notifications}, AndroidIntents: ${permissions.androidIntents}, Accessibility: ${permissions.accessibilityService}`;
 
