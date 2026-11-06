@@ -510,7 +510,7 @@ export async function executeNativeDeviceAction(
     }
 
     if (actionType === 'DIAL_NUMBER') {
-      return await JarvisNativeDevice.openDialer({ phoneNumber: req.phoneNumberOrContact });
+      return await JarvisNativeDevice.placeCall({ phoneNumber: req.phoneNumberOrContact || '' });
     }
 
     if (actionType === 'SEND_SMS') {
@@ -536,7 +536,6 @@ export async function executeNativeDeviceAction(
       });
     }
 
-    if (actionType === 'DIAL_NUMBER') return await JarvisNativeDevice.placeCall({ phoneNumber: req.phoneNumberOrContact || '' });
     if (actionType === 'OPEN_WIFI_SETTINGS') return await JarvisNativeDevice.openWifiSettings();
     if (actionType === 'OPEN_BLUETOOTH_SETTINGS') return await JarvisNativeDevice.openBluetoothSettings();
     if (actionType === 'SET_MEDIA_VOLUME') return await JarvisNativeDevice.setMediaVolume({ percent: req.levelPercent ?? 50 });
