@@ -254,7 +254,12 @@ export type DeviceActionType =
   | 'NAVIGATE_SCREEN'
   | 'WEB_SEARCH_INTENT'
   | 'LOCK_DEVICE'
-  | 'READ_NOTIFICATIONS';
+  | 'READ_NOTIFICATIONS'
+  | 'OPEN_WIFI_SETTINGS'
+  | 'OPEN_BLUETOOTH_SETTINGS'
+  | 'SET_MEDIA_VOLUME'
+  | 'SET_SCREEN_BRIGHTNESS'
+  | 'OPEN_CAMERA';
 
 export interface DeviceActionRequest {
   actionType: DeviceActionType;
@@ -262,6 +267,7 @@ export interface DeviceActionRequest {
   alarmHour?: number;
   alarmMinute?: number;
   timerSeconds?: number;
+  levelPercent?: number;
   label?: string;
   phoneNumberOrContact?: string;
   navigationGesture?: 'BACK' | 'HOME' | 'SCROLL_DOWN' | 'SCROLL_UP' | 'TAP';
