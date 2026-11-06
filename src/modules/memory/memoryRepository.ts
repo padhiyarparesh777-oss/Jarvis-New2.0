@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
     backendUrl: 'https://jarvis-ai-backend-pdy8.onrender.com',
   },
   personality: {
-    addressPreference: 'adaptive',
+    addressPreference: 'boss-sir',
     emotionMode: 'adaptive',
     expressiveness: 0.85,
     userName: 'Sir',
