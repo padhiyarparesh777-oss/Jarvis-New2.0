@@ -867,7 +867,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="flex items-center justify-between p-4 rounded-xl bg-[#0B0B0B] border border-white/10 cursor-pointer">
                   <div>
                     <div className="text-xs font-medium text-white">Continuous Follow-Up Listening</div>
-                    <div className="text-[11px] text-white/50">Automatically resume listening after speech ends</div>
+                    <div className="text-[11px] text-white/50">After each spoken reply, JARVIS automatically listens for your next command. Turn OFF to use tap-to-talk.</div>
                   </div>
                   <input
                     type="checkbox"
