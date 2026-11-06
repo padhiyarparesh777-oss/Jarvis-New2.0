@@ -202,10 +202,9 @@ export const memoryRepository = {
       if (!raw) return DEFAULT_SETTINGS;
       const parsed = JSON.parse(raw);
       const rawProvider = parsed.aiBrain?.provider;
-      const normalizedProvider =
-        rawProvider === 'free-unlimited' || rawProvider === 'auto-hybrid'
-          ? rawProvider
-          : 'auto-hybrid';
+      // Gemini-only is the safe default. Preserve an explicitly selected free provider,
+      // but do not silently re-enable third-party fallback for existing auto-hybrid profiles.
+      const normalizedProvider = rawProvider === 'free-unlimited' ? 'free-unlimited' : 'gemini';
       const rawVoice = parsed.voiceSpeech?.geminiVoice;
       const validMaleVoice =
         rawVoice === 'Charon' || rawVoice === 'Fenrir' || rawVoice === 'Puck'
