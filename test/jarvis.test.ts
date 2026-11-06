@@ -180,26 +180,20 @@ describe('JARVIS AI Voice Pipeline & Action Policy Tests', () => {
     assert.notEqual(result.status, 'awaiting_confirmation');
   });
 
-  // Test 7: Placing a call requires confirmation
-  test('7. Placing a call requires confirmation (CONFIRMATION REQUIRED)', async () => {
-    const isDirect = isActionDirectExecution('DIAL_NUMBER', {
-      actionType: 'DIAL_NUMBER',
+  // Test 7: Explicit phone call commands execute directly
+  test('7. Placing an explicit call does not require an extra confirmation', async () => {
+    const request = {
+      actionType: 'DIAL_NUMBER' as const,
       phoneNumberOrContact: '+919876543210',
-    });
-    const isConfReq = isActionConfirmationRequired('DIAL_NUMBER', {
-      actionType: 'DIAL_NUMBER',
-      phoneNumberOrContact: '+919876543210',
-    });
+    };
+    const isDirect = isActionDirectExecution('DIAL_NUMBER', request);
+    const isConfReq = isActionConfirmationRequired('DIAL_NUMBER', request);
 
-    assert.equal(isDirect, false, 'DIAL_NUMBER must not be direct execution');
-    assert.equal(isConfReq, true, 'DIAL_NUMBER must require confirmation');
+    assert.equal(isDirect, true, 'DIAL_NUMBER should use direct execution');
+    assert.equal(isConfReq, false, 'DIAL_NUMBER should not show a redundant confirmation');
 
-    const result = await processDeviceAction(
-      { actionType: 'DIAL_NUMBER', phoneNumberOrContact: '+919876543210' },
-      DEFAULT_SETTINGS
-    );
-
-    assert.equal(result.status, 'awaiting_confirmation');
+    const result = await processDeviceAction(request, DEFAULT_SETTINGS);
+    assert.equal(result.status, 'intent_dispatched');
   });
 
   // Test 8: Sending WhatsApp messages requires confirmation
