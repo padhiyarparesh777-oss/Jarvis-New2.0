@@ -25,6 +25,12 @@ interface JarvisPermissionsPlugin {
   requestPhonePermission(): Promise<{ phone: 'granted' | 'denied' | 'prompt' }>;
 }
 
+
+interface JarvisHardwarePlugin {
+  setFlashlight(options: { enabled: boolean }): Promise<{ success: boolean; enabled: boolean; message: string }>;
+  getNetworkStatus(): Promise<{ connected: boolean; transport: 'wifi' | 'cellular' | 'ethernet' | 'bluetooth' | 'vpn' | 'other' | 'none'; metered: boolean; androidVersion: string }>;
+}
+
 export interface NativeUiNode {
   text: string;
   viewId?: string;
@@ -161,6 +167,19 @@ export async function launchCameraForUserCapture() {
 
 export const JarvisNativePermissions = registerPlugin<JarvisPermissionsPlugin>('JarvisPermissions');
 export const JarvisNativeDevice = registerPlugin<JarvisDevicePlugin>('JarvisDevice');
+export const JarvisNativeHardware = registerPlugin<JarvisHardwarePlugin>('JarvisHardware');
+
+/** Toggle the Android camera torch. Camera permission may be requested by the app first. */
+export async function setFlashlight(enabled: boolean) {
+  if (!Capacitor.isNativePlatform()) return { success: false, enabled: false, message: 'Flashlight control is available in the Android app only.' };
+  return JarvisNativeHardware.setFlashlight({ enabled });
+}
+
+/** Read the active Android network transport without exposing Wi-Fi credentials. */
+export async function getNativeNetworkStatus() {
+  if (!Capacitor.isNativePlatform()) return { connected: navigator.onLine, transport: 'other' as const, metered: true, androidVersion: 'web' };
+  return JarvisNativeHardware.getNetworkStatus();
+}
 
 const DEFAULT_KNOWN_PACKAGES: Record<string, { pkg: string; scheme: string; webFallback: string }> = {
   youtube: {
