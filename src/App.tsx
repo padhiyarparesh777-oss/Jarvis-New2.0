@@ -35,6 +35,7 @@ import {
   processDeviceAction,
   executeNativeDeviceAction,
   JarvisNativeDevice,
+  JarvisNativePermissions,
 } from './modules/device/deviceControl';
 import { aiService, PlannerToolAction } from './modules/ai/aiService';
 import { voicePipeline } from './modules/voice/voicePipeline';
@@ -180,57 +181,36 @@ export default function App() {
     refreshPermissions();
   }, [refreshBackendStatus, refreshPermissions]);
 
-  // First-launch overlay permission onboarding. Android requires the user to
-  // approve "Display over other apps" inside system Settings; apps cannot grant it.
+  // First-launch onboarding: request normal runtime permissions first.
+  // Special Android settings permissions (overlay/accessibility/notification listener)
+  // remain optional and are offered later from Settings.
   useEffect(() => {
-    const promptKey = 'jarvis_overlay_permission_prompted_v1';
+    const key = 'jarvis_runtime_permissions_requested_v1';
     let disposed = false;
-    let permissionFlowStarted = false;
-    let overlayStarted = false;
-
-    const checkPermissionAndStartOverlay = async () => {
+    const requestRuntimePermissions = async () => {
+      if (!Capacitor.isNativePlatform() || localStorage.getItem(key) === '1') return;
+      localStorage.setItem(key, '1');
       try {
-        const permission = await JarvisNativeDevice.canDrawFloatingOverlay();
+        const status = await JarvisNativePermissions.getPermissionsStatus();
         if (disposed) return;
-        // The floating island is background-only: hide it whenever the app is foregrounded.
-        if (permission.allowed) {
-          await JarvisNativeDevice.stopFloatingOverlay();
-          overlayStarted = false;
-          if (!disposed) setFloatingOverlayEnabled(false);
-        }
+        if (status.microphone !== 'granted') await JarvisNativePermissions.requestMicrophonePermission();
+        if (disposed) return;
+        if (status.camera !== 'granted') await JarvisNativePermissions.requestCameraPermission();
+        if (disposed) return;
+        if (status.notifications !== 'granted') await JarvisNativePermissions.requestNotificationPermission();
+        if (disposed) return;
+        if (status.contacts !== 'granted') await JarvisNativePermissions.requestContactsPermission();
+        if (disposed) return;
+        if (status.phone !== 'granted') await JarvisNativePermissions.requestPhonePermission();
       } catch {
-        // Native bridge is unavailable in the browser/PWA; ignore gracefully.
+        // Users can grant declined permissions later in Android Settings.
+      } finally {
+        if (!disposed) await refreshPermissions();
       }
     };
-
-    const requestOnFirstLaunch = async () => {
-      if (typeof window === 'undefined' || localStorage.getItem(promptKey) === '1') return;
-      try {
-        const permission = await JarvisNativeDevice.canDrawFloatingOverlay();
-        if (disposed || permission.allowed || permissionFlowStarted) return;
-        permissionFlowStarted = true;
-        localStorage.setItem(promptKey, '1');
-        setCaptionSubtext('JARVIS needs permission to show its floating island over other apps.');
-        await JarvisNativeDevice.requestFloatingOverlayPermission();
-      } catch {
-        // Ignore unsupported platforms; the in-app control remains available.
-      }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void checkPermissionAndStartOverlay();
-      }
-    };
-
-    void checkPermissionAndStartOverlay();
-    void requestOnFirstLaunch();
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      disposed = true;
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, []);
+    void requestRuntimePermissions();
+    return () => { disposed = true; };
+  }, [refreshPermissions]);
 
   // Countdown tick for active session timers & alarms
   useEffect(() => {
