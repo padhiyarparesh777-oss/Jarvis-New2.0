@@ -186,13 +186,15 @@ export default function App() {
     const promptKey = 'jarvis_overlay_permission_prompted_v1';
     let disposed = false;
     let permissionFlowStarted = false;
+    let overlayStarted = false;
 
     const checkPermissionAndStartOverlay = async () => {
       try {
         const permission = await JarvisNativeDevice.canDrawFloatingOverlay();
         if (disposed) return;
-        if (permission.allowed) {
+        if (permission.allowed && !overlayStarted) {
           await JarvisNativeDevice.startFloatingOverlay();
+          overlayStarted = true;
           if (!disposed) setFloatingOverlayEnabled(true);
         }
       } catch {
@@ -220,6 +222,7 @@ export default function App() {
       }
     };
 
+    void checkPermissionAndStartOverlay();
     void requestOnFirstLaunch();
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
