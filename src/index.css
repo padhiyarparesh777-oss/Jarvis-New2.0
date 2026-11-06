@@ -113,3 +113,132 @@ header button:hover {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
+
+
+/* --------------------------------------------------------------------------
+   JARVIS 2.0 — cinematic command deck + responsive glass settings
+   -------------------------------------------------------------------------- */
+:root {
+  --jarvis-gold: #e9bd70;
+  --jarvis-gold-bright: #ffd98b;
+  --jarvis-glass: rgba(13, 15, 19, .76);
+  --jarvis-stroke: rgba(233, 189, 112, .22);
+}
+.jarvis-shell {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(154, 103, 39, .14), transparent 38%),
+    radial-gradient(ellipse at 8% 78%, rgba(93, 67, 35, .09), transparent 32%),
+    #030405 !important;
+}
+.jarvis-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,.28), transparent 24%, transparent 62%, rgba(0,0,0,.55));
+}
+.jarvis-topbar {
+  padding-left: max(1.15rem, env(safe-area-inset-left));
+  padding-right: max(1.15rem, env(safe-area-inset-right));
+  background: linear-gradient(180deg, rgba(0,0,0,.82), rgba(0,0,0,.12));
+  backdrop-filter: blur(14px);
+}
+.jarvis-mark {
+  border: 1px solid rgba(233,189,112,.38);
+  background: linear-gradient(145deg, rgba(233,189,112,.18), rgba(233,189,112,.035));
+  box-shadow: 0 0 28px rgba(233,189,112,.13), inset 0 1px rgba(255,255,255,.12);
+}
+.jarvis-live-pill, .jarvis-icon-button {
+  border: 1px solid var(--jarvis-stroke);
+  background: rgba(15,17,21,.62);
+  box-shadow: 0 8px 28px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.06);
+  backdrop-filter: blur(18px);
+}
+.jarvis-icon-button:hover {
+  border-color: rgba(255,217,139,.58);
+  box-shadow: 0 0 24px rgba(233,189,112,.16);
+}
+.jarvis-welcome { text-shadow: 0 2px 18px rgba(0,0,0,.8); }
+.jarvis-command-dock { z-index: 21; }
+.jarvis-action-tile {
+  min-height: 82px;
+  border: 1px solid rgba(233,189,112,.19);
+  background: linear-gradient(145deg, rgba(22,22,22,.88), rgba(7,8,10,.82));
+  box-shadow: 0 10px 28px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.055);
+  backdrop-filter: blur(18px);
+}
+.jarvis-action-tile:active {
+  border-color: rgba(255,217,139,.65);
+  background: rgba(233,189,112,.13);
+}
+.jarvis-shell > header, .jarvis-shell > section, .jarvis-shell > div, .jarvis-shell > button {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Settings: retain every existing control, refresh the shell and navigation */
+[aria-label="JARVIS AI Settings"] {
+  padding: 0;
+  background: rgba(0,0,0,.78) !important;
+}
+[aria-label="JARVIS AI Settings"] > div {
+  width: min(100%, 760px) !important;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(233,189,112,.08), transparent 34%),
+    linear-gradient(160deg, #0b0d10, #050607 58%) !important;
+  border-left: 1px solid rgba(233,189,112,.28) !important;
+  box-shadow: -24px 0 80px rgba(0,0,0,.58), inset 1px 0 rgba(255,255,255,.035);
+}
+[aria-label="JARVIS AI Settings"] > div > div:first-child {
+  padding-top: max(1rem, env(safe-area-inset-top)) !important;
+  background: rgba(10,11,13,.88) !important;
+  border-bottom-color: rgba(233,189,112,.2) !important;
+}
+[aria-label="JARVIS AI Settings"] > div > div:nth-child(2) {
+  background: rgba(7,8,10,.92) !important;
+  border-bottom-color: rgba(233,189,112,.16) !important;
+  scrollbar-width: none;
+}
+[aria-label="JARVIS AI Settings"] > div > div:nth-child(2) button {
+  border: 1px solid rgba(255,255,255,.07);
+  background: rgba(255,255,255,.025);
+}
+[aria-label="JARVIS AI Settings"] > div > div:nth-child(2) button[class*="bg-[#FFC928]"] {
+  background: linear-gradient(135deg, #f7d58d, #c79542) !important;
+  color: #17120a !important;
+  border-color: rgba(255,224,160,.7) !important;
+  box-shadow: 0 4px 18px rgba(233,189,112,.18);
+}
+[aria-label="JARVIS AI Settings"] > div > div:nth-child(3) {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom)) !important;
+  scrollbar-color: rgba(233,189,112,.4) transparent;
+}
+[aria-label="JARVIS AI Settings"] .rounded-xl,
+[aria-label="JARVIS AI Settings"] .rounded-2xl {
+  box-shadow: inset 0 1px rgba(255,255,255,.035), 0 8px 24px rgba(0,0,0,.14);
+}
+[aria-label="JARVIS AI Settings"] input:not([type="checkbox"]):not([type="range"]),
+[aria-label="JARVIS AI Settings"] select,
+[aria-label="JARVIS AI Settings"] textarea {
+  background-color: rgba(0,0,0,.55) !important;
+  border-color: rgba(233,189,112,.2) !important;
+}
+@media (min-width: 700px) {
+  [aria-label="JARVIS AI Settings"] { padding: 1rem; }
+  [aria-label="JARVIS AI Settings"] > div {
+    height: min(94dvh, 900px) !important;
+    border: 1px solid rgba(233,189,112,.25) !important;
+    border-radius: 24px;
+  }
+}
+@media (max-height: 760px) {
+  .jarvis-welcome { top: max(4.8rem, calc(env(safe-area-inset-top) + 4rem)) !important; }
+  .jarvis-welcome h2 { font-size: clamp(1.25rem, 4.5vw, 1.7rem) !important; }
+  .jarvis-welcome p:nth-of-type(2) { margin-top: .25rem; }
+  .jarvis-command-dock { bottom: calc(9.8rem + env(safe-area-inset-bottom)) !important; }
+  .jarvis-action-tile { min-height: 68px; padding-top: .55rem; padding-bottom: .55rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-action-tile, .jarvis-icon-button { transition: none !important; }
+}
