@@ -36,14 +36,14 @@ function getGeminiClient(): GoogleGenAI | null {
 const deviceActionTool: FunctionDeclaration = {
   name: "executeDeviceAction",
   description:
-    "Trigger Android device actions requested by the user: open apps, alarms/timers, calls/messages, screen navigation, Wi-Fi/Bluetooth settings panels, media volume, screen brightness, camera, notifications, or device status. Wi-Fi and Bluetooth open Android controls for the user; do not claim to silently toggle them.",
+    "Trigger Android device actions requested by the user: open apps, alarms/timers, calls/messages, screen navigation, Wi-Fi/Bluetooth settings panels, media volume, screen brightness, flashlight, network status, camera, notifications, or device status. Wi-Fi and Bluetooth open Android controls for the user; do not claim to silently toggle them. Flashlight uses the Android camera torch API and may require camera permission.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       actionType: {
         type: Type.STRING,
         description:
-          "One of: OPEN_APP, SET_ALARM, SET_TIMER, DIAL_NUMBER, SEND_SMS, SEND_WHATSAPP, OPEN_SETTINGS, CHECK_DEVICE_STATUS, NAVIGATE_SCREEN, WEB_SEARCH_INTENT, OPEN_WIFI_SETTINGS, OPEN_BLUETOOTH_SETTINGS, SET_MEDIA_VOLUME, SET_SCREEN_BRIGHTNESS, OPEN_CAMERA, READ_NOTIFICATIONS",
+          "One of: OPEN_APP, SET_ALARM, SET_TIMER, DIAL_NUMBER, SEND_SMS, SEND_WHATSAPP, OPEN_SETTINGS, CHECK_DEVICE_STATUS, NAVIGATE_SCREEN, WEB_SEARCH_INTENT, OPEN_WIFI_SETTINGS, OPEN_BLUETOOTH_SETTINGS, SET_MEDIA_VOLUME, SET_SCREEN_BRIGHTNESS, OPEN_CAMERA, READ_NOTIFICATIONS, SET_FLASHLIGHT, CHECK_NETWORK_STATUS",
       },
       targetApp: {
         type: Type.STRING,
@@ -82,7 +82,7 @@ const deviceActionTool: FunctionDeclaration = {
       requiresConfirmation: {
         type: Type.BOOLEAN,
         description:
-          "True only for sending SMS/WhatsApp or other destructive/sensitive actions. DIAL_NUMBER is direct when the user explicitly asks to call; do not request an extra verbal confirmation.",
+          "True only for sending SMS/WhatsApp or other destructive/sensitive actions. DIAL_NUMBER is direct when the user explicitly asks to call; flashlight and network status are direct, subject to Android permission.",
       },
     },
     required: ["actionType"],
