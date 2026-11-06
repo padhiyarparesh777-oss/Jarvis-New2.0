@@ -2,7 +2,6 @@ package com.padhiyar.jarvis;
 
 import android.os.Bundle;
 import android.content.Intent;
-import android.provider.Settings;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
@@ -10,7 +9,8 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
 
-    // Keep the floating JARVIS pill visible only while the app is in the background.
+    // The overlay is started only by the explicit Floating Island control.
+    // Returning to JARVIS always dismisses the overlay.
     @Override
     public void onResume() {
         super.onResume();
@@ -19,15 +19,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onPause() {
-        // The app is leaving the foreground (Home, app switch, or another app).
-        // Android still requires the user to grant Display over other apps.
-        if (Settings.canDrawOverlays(this)) {
-            try {
-                startService(new Intent(this, JarvisFloatingOverlayService.class));
-            } catch (IllegalStateException | SecurityException ignored) {
-                // Some Android/OEM background restrictions may prevent a background service start.
-            }
-        }
+        // Do not auto-start overlays when the activity loses focus.
+        // JarvisDevicePlugin.startFloatingOverlay() is the sole opt-in entry point.
         super.onPause();
     }
 
@@ -38,7 +31,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(JarvisHardwarePlugin.class);
         super.onCreate(savedInstanceState);
 
-        // Configure WebView settings for audio responsiveness and media permissions
+        // Configure WebView settings for audio responsiveness and media permissions.
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebView webView = getBridge().getWebView();
             WebSettings settings = webView.getSettings();
@@ -48,7 +41,7 @@ public class MainActivity extends BridgeActivity {
             settings.setDatabaseEnabled(true);
         }
 
-        // Android Hardware Back Button Handling (dispatches window event 'jarvis:backbutton')
+        // Android hardware Back button dispatches the 'jarvis:backbutton' event.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
