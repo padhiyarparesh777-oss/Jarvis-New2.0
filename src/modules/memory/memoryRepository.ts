@@ -44,7 +44,7 @@ export const DEFAULT_SETTINGS: JarvisSettings = {
     voiceEngine: 'elevenlabs',
     geminiVoice: 'Charon',
     speechSpeed: 1.0,
-    autoListenFollowUp: false,
+    autoListenFollowUp: true,
     touchToSpeakMode: 'tap-toggle',
     voiceOutputEnabled: true,
     wakeWordForegroundActive: false,
