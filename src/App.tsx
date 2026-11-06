@@ -180,6 +180,54 @@ export default function App() {
     refreshPermissions();
   }, [refreshBackendStatus, refreshPermissions]);
 
+  // First-launch overlay permission onboarding. Android requires the user to
+  // approve "Display over other apps" inside system Settings; apps cannot grant it.
+  useEffect(() => {
+    const promptKey = 'jarvis_overlay_permission_prompted_v1';
+    let disposed = false;
+    let permissionFlowStarted = false;
+
+    const checkPermissionAndStartOverlay = async () => {
+      try {
+        const permission = await JarvisNativeDevice.canDrawFloatingOverlay();
+        if (disposed) return;
+        if (permission.allowed) {
+          await JarvisNativeDevice.startFloatingOverlay();
+          if (!disposed) setFloatingOverlayEnabled(true);
+        }
+      } catch {
+        // Native bridge is unavailable in the browser/PWA; ignore gracefully.
+      }
+    };
+
+    const requestOnFirstLaunch = async () => {
+      if (typeof window === 'undefined' || localStorage.getItem(promptKey) === '1') return;
+      try {
+        const permission = await JarvisNativeDevice.canDrawFloatingOverlay();
+        if (disposed || permission.allowed || permissionFlowStarted) return;
+        permissionFlowStarted = true;
+        localStorage.setItem(promptKey, '1');
+        setCaptionSubtext('JARVIS needs permission to show its floating island over other apps.');
+        await JarvisNativeDevice.requestFloatingOverlayPermission();
+      } catch {
+        // Ignore unsupported platforms; the in-app control remains available.
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void checkPermissionAndStartOverlay();
+      }
+    };
+
+    void requestOnFirstLaunch();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+
   // Countdown tick for active session timers & alarms
   useEffect(() => {
     if (activeTimers.length === 0) return;
