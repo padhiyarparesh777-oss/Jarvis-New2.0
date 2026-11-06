@@ -36,14 +36,14 @@ function getGeminiClient(): GoogleGenAI | null {
 const deviceActionTool: FunctionDeclaration = {
   name: "executeDeviceAction",
   description:
-    "Trigger an Android device control intent or system action when the user explicitly requests opening an app, setting an alarm, setting a timer, making a phone call, sending an SMS or WhatsApp message, navigating the screen, toggling system settings, or checking device status.",
+    "Trigger Android device actions requested by the user: open apps, alarms/timers, calls/messages, screen navigation, Wi-Fi/Bluetooth settings panels, media volume, screen brightness, camera, notifications, or device status. Wi-Fi and Bluetooth open Android controls for the user; do not claim to silently toggle them.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       actionType: {
         type: Type.STRING,
         description:
-          "One of: OPEN_APP, SET_ALARM, SET_TIMER, DIAL_NUMBER, SEND_SMS, SEND_WHATSAPP, OPEN_SETTINGS, CHECK_DEVICE_STATUS, NAVIGATE_SCREEN, WEB_SEARCH_INTENT",
+          "One of: OPEN_APP, SET_ALARM, SET_TIMER, DIAL_NUMBER, SEND_SMS, SEND_WHATSAPP, OPEN_SETTINGS, CHECK_DEVICE_STATUS, NAVIGATE_SCREEN, WEB_SEARCH_INTENT, OPEN_WIFI_SETTINGS, OPEN_BLUETOOTH_SETTINGS, SET_MEDIA_VOLUME, SET_SCREEN_BRIGHTNESS, OPEN_CAMERA, READ_NOTIFICATIONS",
       },
       targetApp: {
         type: Type.STRING,
@@ -61,6 +61,10 @@ const deviceActionTool: FunctionDeclaration = {
       timerSeconds: {
         type: Type.INTEGER,
         description: "Duration in seconds if setting a timer.",
+      },
+      levelPercent: {
+        type: Type.INTEGER,
+        description: "Requested media volume or screen brightness from 0 to 100. For brightness use 1 to 100.",
       },
       label: {
         type: Type.STRING,
