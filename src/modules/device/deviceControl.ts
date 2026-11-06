@@ -894,20 +894,26 @@ export async function processDeviceAction(
     const originalTarget = (request.phoneNumberOrContact || '').trim();
     let resolvedName = originalTarget;
     let resolvedNumber = originalTarget;
-    if (Capacitor.isNativePlatform() && originalTarget && !/^\\+?[\\d\\s().-]+$/.test(originalTarget)) {
+    if (Capacitor.isNativePlatform() && originalTarget && !/^\+?[\d\s().-]+$/.test(originalTarget)) {
       try {
         const contactMatch = await JarvisNativeDevice.searchContacts({ query: originalTarget });
         const matches = contactMatch.contacts?.filter((contact) => contact.phoneNumber?.trim()) || [];
-        if (matches.length === 1) {
-          resolvedName = matches[0].displayName || originalTarget;
-          resolvedNumber = matches[0].phoneNumber || originalTarget;
-        } else if (matches.length > 1) {
+        const normalizeName = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+        const exactMatches = matches.filter((contact) =>
+          normalizeName(contact.displayName || '') === normalizeName(originalTarget)
+        );
+        // Prefer a unique exact full-name match over broader partial-name search results.
+        const selectedMatches = exactMatches.length > 0 ? exactMatches : matches;
+        if (selectedMatches.length === 1) {
+          resolvedName = selectedMatches[0].displayName || originalTarget;
+          resolvedNumber = selectedMatches[0].phoneNumber || originalTarget;
+        } else if (selectedMatches.length > 1) {
           return { id, request, status: 'awaiting_confirmation', title: 'Choose a contact',
-            detail: `More than one contact matches "${originalTarget}". Please specify the full name or number.`, timestamp };
+            detail: `I found multiple contacts matching "${originalTarget}". Please choose the correct contact before I call.`, timestamp };
         }
       } catch { /* If lookup fails, try a supplied number below. */ }
     }
-    const sanitized = resolvedNumber.replace(/[^\\d+]/g, '');
+    const sanitized = resolvedNumber.replace(/[^\d+]/g, '');
     if (!sanitized) {
       return { id, request, status: 'unsupported', title: 'Phone number not found',
         detail: `I couldn't find a phone number for ${resolvedName}. Please provide the number or check Contacts permission.`, timestamp };
