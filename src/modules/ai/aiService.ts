@@ -296,6 +296,7 @@ class JarvisAIService {
         alarmHour: fc.args.alarmHour as number | undefined,
         alarmMinute: fc.args.alarmMinute as number | undefined,
         timerSeconds: fc.args.timerSeconds as number | undefined,
+        levelPercent: fc.args.levelPercent as number | undefined,
         label: fc.args.label as string | undefined,
         phoneNumberOrContact: fc.args.phoneNumberOrContact as string | undefined,
         navigationGesture: fc.args.navigationGesture as DeviceActionRequest['navigationGesture'],
