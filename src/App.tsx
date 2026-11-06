@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Settings, ExternalLink, X } from 'lucide-react';
+import { Settings, ExternalLink, X, Mic, ChevronUp, ChevronDown, Radio, Waves } from 'lucide-react';
 import {
   ActiveTimerOrAlarm,
   AutomationLog,
@@ -101,6 +101,8 @@ export default function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isIslandExpanded, setIsIslandExpanded] = useState<boolean>(false);
+  const [floatingOverlayEnabled, setFloatingOverlayEnabled] = useState<boolean>(false);
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [permissions, setPermissions] = useState<PermissionStatusMap>({
     microphone: 'prompt',
@@ -769,6 +771,30 @@ export default function App() {
     triggerTransientErrorState,
   ]);
 
+
+  const handleToggleFloatingOverlay = useCallback(async () => {
+    try {
+      const permission = await JarvisNativeDevice.canDrawFloatingOverlay();
+      if (!permission.allowed) {
+        await JarvisNativeDevice.requestFloatingOverlayPermission();
+        setCaptionSubtext('Allow JARVIS to display over other apps, then tap Floating Island again.');
+        return;
+      }
+      if (floatingOverlayEnabled) {
+        await JarvisNativeDevice.stopFloatingOverlay();
+        setFloatingOverlayEnabled(false);
+        setCaptionSubtext('Floating JARVIS island hidden.');
+      } else {
+        await JarvisNativeDevice.startFloatingOverlay();
+        setFloatingOverlayEnabled(true);
+        setCaptionSubtext('Floating JARVIS island is active above supported apps.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Floating overlay is available in the Android app only.';
+      setCaptionSubtext(message);
+    }
+  }, [floatingOverlayEnabled]);
+
   const handleNewThread = useCallback(() => {
     const newThread: ChatThread = {
       id: `thread-${Date.now()}`,
@@ -913,6 +939,32 @@ export default function App() {
           </button>
         </div>
       </header>
+
+
+      {/* Dynamic Island-inspired voice control pill */}
+      <div className="jarvis-island-wrap fixed z-[45] top-[max(4.65rem,calc(env(safe-area-inset-top)+4.1rem))] left-1/2 -translate-x-1/2">
+        <div className={`jarvis-island ${isIslandExpanded ? 'is-expanded' : ''} ${interactionState}`}>
+          <button type="button" className="jarvis-island-main" onClick={() => setIsIslandExpanded((v) => !v)} aria-expanded={isIslandExpanded} aria-label="Expand JARVIS Dynamic Island">
+            <span className="jarvis-island-core"><Waves size={15} /></span>
+            <span className="jarvis-island-copy">
+              <strong>JARVIS</strong>
+              <small>{interactionState === 'listening' ? 'LISTENING' : interactionState === 'thinking' ? 'THINKING' : interactionState === 'speaking' ? 'SPEAKING' : interactionState === 'error' ? 'ATTENTION' : 'READY'}</small>
+            </span>
+            <span className="jarvis-island-bars" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+            {isIslandExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+          {isIslandExpanded && (
+            <div className="jarvis-island-panel">
+              <p>{liveCaption || 'Your voice-first AI assistant is ready.'}</p>
+              <div className="jarvis-island-actions">
+                <button type="button" onClick={handleCoreTap}><Mic size={14} /> {interactionState === 'listening' ? 'Finish' : interactionState === 'speaking' ? 'Stop' : 'Talk'}</button>
+                <button type="button" onClick={handleToggleFloatingOverlay}><Radio size={14} /> {floatingOverlayEnabled ? 'Hide overlay' : 'Float above apps'}</button>
+              </div>
+              <span className="jarvis-island-hint">Floating overlay requires Android “Display over other apps” permission.</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       <section className="jarvis-welcome fixed z-10 top-[max(5.6rem,calc(env(safe-area-inset-top)+4.7rem))] left-0 right-0 px-5 text-center pointer-events-none">
         <p className="text-[9px] tracking-[.34em] uppercase text-[#E9BD70]/80 mb-2">Your AI. Your command.</p>
