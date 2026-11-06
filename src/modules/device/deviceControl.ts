@@ -43,6 +43,7 @@ export interface NativeNotificationItem {
 interface JarvisDevicePlugin {
   openApp(options: { packageName: string; targetApp?: string }): Promise<{ success: boolean; message: string }>;
   openDialer(options: { phoneNumber?: string }): Promise<{ success: boolean; message: string }>;
+  placeCall(options: { phoneNumber: string }): Promise<{ success: boolean; message: string }>;
   sendSms(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
   sendWhatsApp(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
   setAlarm(options: { hour: number; minute: number; label?: string; skipUi?: boolean }): Promise<{ success: boolean; message: string }>;
@@ -535,6 +536,7 @@ export async function executeNativeDeviceAction(
       });
     }
 
+    if (actionType === 'DIAL_NUMBER') return await JarvisNativeDevice.placeCall({ phoneNumber: req.phoneNumberOrContact || '' });
     if (actionType === 'OPEN_WIFI_SETTINGS') return await JarvisNativeDevice.openWifiSettings();
     if (actionType === 'OPEN_BLUETOOTH_SETTINGS') return await JarvisNativeDevice.openBluetoothSettings();
     if (actionType === 'SET_MEDIA_VOLUME') return await JarvisNativeDevice.setMediaVolume({ percent: req.levelPercent ?? 50 });
@@ -593,6 +595,7 @@ export function isActionDirectExecution(
   switch (actionType) {
     case 'OPEN_APP':
     case 'OPEN_SETTINGS':
+    case 'DIAL_NUMBER':
       // Opening installed apps (YouTube, Telegram, Chrome, Settings, Gallery, Camera, WhatsApp itself) is direct
       return true;
     case 'NAVIGATE_SCREEN':
@@ -623,7 +626,6 @@ export function isActionConfirmationRequired(
 ): boolean {
   // Explicit sensitive categories
   if (
-    actionType === 'DIAL_NUMBER' ||
     actionType === 'SEND_SMS' ||
     actionType === 'SEND_WHATSAPP' ||
     actionType === 'LOCK_DEVICE'
@@ -837,45 +839,43 @@ export async function processDeviceAction(
     };
   }
 
-  // 5. Phone Calls (CONFIRMATION REQUIRED)
+  // 5. Phone Calls (DIRECT EXECUTION after explicit spoken/user command)
   if (actionType === 'DIAL_NUMBER') {
     const originalTarget = (request.phoneNumberOrContact || '').trim();
     let resolvedName = originalTarget;
     let resolvedNumber = originalTarget;
-
-    // Resolve a contact name to its exact number before staging confirmation.
-    if (Capacitor.isNativePlatform() && originalTarget && !/^\+?[\d\s().-]+$/.test(originalTarget)) {
+    if (Capacitor.isNativePlatform() && originalTarget && !/^\\+?[\\d\\s().-]+$/.test(originalTarget)) {
       try {
         const contactMatch = await JarvisNativeDevice.searchContacts({ query: originalTarget });
-        const first = contactMatch.contacts?.find((contact) => contact.phoneNumber?.trim());
-        if (first?.phoneNumber) {
-          resolvedName = first.displayName || originalTarget;
-          resolvedNumber = first.phoneNumber;
+        const matches = contactMatch.contacts?.filter((contact) => contact.phoneNumber?.trim()) || [];
+        if (matches.length === 1) {
+          resolvedName = matches[0].displayName || originalTarget;
+          resolvedNumber = matches[0].phoneNumber || originalTarget;
+        } else if (matches.length > 1) {
+          return { id, request, status: 'awaiting_confirmation', title: 'Choose a contact',
+            detail: `More than one contact matches "${originalTarget}". Please specify the full name or number.`, timestamp };
         }
-      } catch {
-        // Keep the original target; the user can cancel if no number is found.
+      } catch { /* If lookup fails, try a supplied number below. */ }
+    }
+    const sanitized = resolvedNumber.replace(/[^\\d+]/g, '');
+    if (!sanitized) {
+      return { id, request, status: 'unsupported', title: 'Phone number not found',
+        detail: `I couldn't find a phone number for ${resolvedName}. Please provide the number or check Contacts permission.`, timestamp };
+    }
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const result = await JarvisNativeDevice.placeCall({ phoneNumber: sanitized });
+        return { id, request: { ...request, phoneNumberOrContact: sanitized },
+          status: result.success ? 'intent_dispatched' : 'permission_missing',
+          title: result.success ? `Calling ${resolvedName}` : 'Phone permission required',
+          detail: result.message, timestamp };
+      } catch (error) {
+        return { id, request, status: 'permission_missing', title: 'Unable to place call',
+          detail: error instanceof Error ? error.message : 'Check Phone permission and try again.', timestamp };
       }
     }
-
-    const sanitized = resolvedNumber.replace(/[^\d+]/g, '');
-    const telUri = sanitized ? `tel:${sanitized}` : 'tel:';
-    const confirmedRequest: DeviceActionRequest = {
-      ...request,
-      // Store the resolved number, not "Contact Name (+91...)".
-      phoneNumberOrContact: sanitized || originalTarget,
-    };
-
-    return {
-      id,
-      request: confirmedRequest,
-      status: 'awaiting_confirmation',
-      title: `Place Phone Call: ${resolvedName || sanitized || 'Dialer'}`,
-      detail: sanitized
-        ? `Confirm to open the dialer with ${resolvedName} (${sanitized}). Tap Call in Android to start the call.`
-        : `No phone number was found for ${resolvedName || 'this contact'}. Please cancel and choose a contact with a saved number.`,
-      androidIntentUri: telUri,
-      timestamp,
-    };
+    return { id, request, status: 'intent_dispatched', title: `Call ${resolvedName}`,
+      detail: `Call request prepared for ${sanitized}.`, androidIntentUri: `tel:${sanitized}`, timestamp };
   }
 
   // 6. SMS Messages (CONFIRMATION REQUIRED)
