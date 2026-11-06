@@ -560,6 +560,14 @@ export async function executeNativeDeviceAction(
     if (actionType === 'SET_MEDIA_VOLUME') return await JarvisNativeDevice.setMediaVolume({ percent: req.levelPercent ?? 50 });
     if (actionType === 'SET_SCREEN_BRIGHTNESS') return await JarvisNativeDevice.setScreenBrightness({ percent: req.levelPercent ?? 50 });
     if (actionType === 'OPEN_CAMERA') return await JarvisNativeDevice.openCameraCapture();
+    if (actionType === 'SET_FLASHLIGHT') {
+      const result = await setFlashlight((req.label || '').toLowerCase() !== 'off');
+      return { success: result.success, message: result.message };
+    }
+    if (actionType === 'CHECK_NETWORK_STATUS') {
+      const result = await getNativeNetworkStatus();
+      return { success: true, message: 'Network: ' + (result.connected ? 'connected' : 'disconnected') + ' via ' + result.transport + (result.metered ? ' (metered)' : '') + '.' };
+    }
 
     if (actionType === 'CHECK_DEVICE_STATUS') {
       const telemetry = await JarvisNativeDevice.getDeviceTelemetry();
@@ -629,6 +637,8 @@ export function isActionDirectExecution(
     case 'SET_MEDIA_VOLUME':
     case 'SET_SCREEN_BRIGHTNESS':
     case 'OPEN_CAMERA':
+    case 'SET_FLASHLIGHT':
+    case 'CHECK_NETWORK_STATUS':
       return true;
     default:
       return false;
@@ -696,6 +706,28 @@ export async function processDeviceAction(
   }
 
   const actionType = request.actionType;
+
+  if (actionType === 'SET_FLASHLIGHT') {
+    if (!Capacitor.isNativePlatform()) return { id, request, status: 'unsupported', title: 'Android Only', detail: 'Flashlight control is available in the Android app.', timestamp };
+    const enabled = (request.label || '').toLowerCase() !== 'off';
+    try {
+      const permission = await JarvisNativePermissions.getPermissionsStatus();
+      if (permission.camera !== 'granted') {
+        const granted = await JarvisNativePermissions.requestCameraPermission();
+        if (granted.camera !== 'granted') return { id, request, status: 'permission_missing', title: 'Camera Permission Required', detail: 'Allow camera permission to control the flashlight.', timestamp };
+      }
+      const result = await JarvisNativeHardware.setFlashlight({ enabled });
+      return { id, request, status: result.success ? 'confirmed' : 'unsupported', title: enabled ? 'Flashlight On' : 'Flashlight Off', detail: result.message, timestamp };
+    } catch (error) {
+      return { id, request, status: 'unsupported', title: 'Flashlight Error', detail: error instanceof Error ? error.message : String(error), timestamp };
+    }
+  }
+
+  if (actionType === 'CHECK_NETWORK_STATUS') {
+    if (!Capacitor.isNativePlatform()) return { id, request, status: 'unsupported', title: 'Android Only', detail: 'Native network diagnostics are available in the Android app.', timestamp };
+    const result = await JarvisNativeHardware.getNetworkStatus();
+    return { id, request, status: 'confirmed', title: 'Network Status', detail: (result.connected ? 'Connected' : 'Disconnected') + ' via ' + result.transport + (result.metered ? ' (metered connection)' : '') + '.', timestamp };
+  }
 
   if (actionType === 'READ_NOTIFICATIONS') {
     if (!Capacitor.isNativePlatform()) {
