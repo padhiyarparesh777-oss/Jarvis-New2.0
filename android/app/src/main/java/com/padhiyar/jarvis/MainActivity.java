@@ -12,13 +12,13 @@ public class MainActivity extends BridgeActivity {
 
     // Keep the floating JARVIS pill visible only while the app is in the background.
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         stopService(new Intent(this, JarvisFloatingOverlayService.class));
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         // The app is leaving the foreground (Home, app switch, or another app).
         // Android still requires the user to grant Display over other apps.
         if (Settings.canDrawOverlays(this)) {
