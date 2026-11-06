@@ -733,7 +733,7 @@ export async function processDeviceAction(
     let resolvedNumber = originalTarget;
 
     // Resolve a contact name to its exact number before staging confirmation.
-    if (Capacitor.isNativePlatform() && originalTarget && !/^\\+?[\\d\\s().-]+$/.test(originalTarget)) {
+    if (Capacitor.isNativePlatform() && originalTarget && !/^\+?[\d\s().-]+$/.test(originalTarget)) {
       try {
         const contactMatch = await JarvisNativeDevice.searchContacts({ query: originalTarget });
         const first = contactMatch.contacts?.find((contact) => contact.phoneNumber?.trim());
@@ -746,7 +746,7 @@ export async function processDeviceAction(
       }
     }
 
-    const sanitized = resolvedNumber.replace(/[^\\d+]/g, '');
+    const sanitized = resolvedNumber.replace(/[^\d+]/g, '');
     const telUri = sanitized ? `tel:${sanitized}` : 'tel:';
     const confirmedRequest: DeviceActionRequest = {
       ...request,
