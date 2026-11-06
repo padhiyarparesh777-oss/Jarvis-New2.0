@@ -152,8 +152,12 @@ public class JarvisDevicePlugin extends Plugin {
         String sanitized = phoneNumber.replaceAll("[^0-9+*#]", "");
 
         try {
-            Uri dialUri = sanitized.isEmpty() ? Uri.parse("tel:") : Uri.parse("tel:" + Uri.encode(sanitized));
-            Intent intent = new Intent(Intent.ACTION_DIAL, dialUri);
+            // Uri.fromParts safely encodes the resolved number while preserving + and dial characters.
+            Uri dialUri = sanitized.isEmpty()
+                ? Uri.parse("tel:")
+                : Uri.fromParts("tel", sanitized, null);
+            Intent intent = new Intent(Intent.ACTION_DIAL);
+            intent.setData(dialUri);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(intent);
 
