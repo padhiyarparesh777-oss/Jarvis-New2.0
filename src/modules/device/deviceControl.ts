@@ -535,6 +535,12 @@ export async function executeNativeDeviceAction(
       });
     }
 
+    if (actionType === 'OPEN_WIFI_SETTINGS') return await JarvisNativeDevice.openWifiSettings();
+    if (actionType === 'OPEN_BLUETOOTH_SETTINGS') return await JarvisNativeDevice.openBluetoothSettings();
+    if (actionType === 'SET_MEDIA_VOLUME') return await JarvisNativeDevice.setMediaVolume({ percent: req.levelPercent ?? 50 });
+    if (actionType === 'SET_SCREEN_BRIGHTNESS') return await JarvisNativeDevice.setScreenBrightness({ percent: req.levelPercent ?? 50 });
+    if (actionType === 'OPEN_CAMERA') return await JarvisNativeDevice.openCameraCapture();
+
     if (actionType === 'CHECK_DEVICE_STATUS') {
       const telemetry = await JarvisNativeDevice.getDeviceTelemetry();
       const summary = `Battery: ${telemetry.batteryLevel}% (${telemetry.isCharging ? 'Charging' : 'Battery'}) · ${telemetry.manufacturer} ${telemetry.model} (Android ${telemetry.androidVersion})`;
@@ -665,6 +671,49 @@ export async function processDeviceAction(
   }
 
   const actionType = request.actionType;
+
+  // Quick device controls (system panels are opened for the user; no silent Wi-Fi/Bluetooth toggles).
+  if (actionType === 'OPEN_WIFI_SETTINGS' || actionType === 'OPEN_BLUETOOTH_SETTINGS') {
+    if (!Capacitor.isNativePlatform()) {
+      return { id, request, status: 'unsupported', title: 'Android Only', detail: 'This control is available in the Android app.', timestamp };
+    }
+    const result = actionType === 'OPEN_WIFI_SETTINGS'
+      ? await JarvisNativeDevice.openWifiSettings()
+      : await JarvisNativeDevice.openBluetoothSettings();
+    return { id, request, status: result.success ? 'intent_dispatched' : 'unsupported',
+      title: actionType === 'OPEN_WIFI_SETTINGS' ? 'Wi-Fi Controls Opened' : 'Bluetooth Controls Opened',
+      detail: result.message, timestamp };
+  }
+
+  if (actionType === 'SET_MEDIA_VOLUME') {
+    const percent = Math.max(0, Math.min(100, Number(request.levelPercent ?? 50)));
+    if (!Capacitor.isNativePlatform()) {
+      return { id, request, status: 'unsupported', title: 'Android Only', detail: 'Media volume control is available in the Android app.', timestamp };
+    }
+    const result = await JarvisNativeDevice.setMediaVolume({ percent });
+    return { id, request, status: result.success ? 'confirmed' : 'unsupported',
+      title: 'Media Volume Updated', detail: result.message, timestamp };
+  }
+
+  if (actionType === 'SET_SCREEN_BRIGHTNESS') {
+    const percent = Math.max(1, Math.min(100, Number(request.levelPercent ?? 50)));
+    if (!Capacitor.isNativePlatform()) {
+      return { id, request, status: 'unsupported', title: 'Android Only', detail: 'Brightness control is available in the Android app.', timestamp };
+    }
+    const result = await JarvisNativeDevice.setScreenBrightness({ percent });
+    return { id, request, status: result.success ? 'confirmed' : 'permission_missing',
+      title: result.success ? 'Brightness Updated' : 'Brightness Permission Required',
+      detail: result.message, timestamp };
+  }
+
+  if (actionType === 'OPEN_CAMERA') {
+    if (!Capacitor.isNativePlatform()) {
+      return { id, request, status: 'unsupported', title: 'Android Only', detail: 'Camera launch is available in the Android app.', timestamp };
+    }
+    const result = await JarvisNativeDevice.openCameraCapture();
+    return { id, request, status: result.success ? 'intent_dispatched' : 'unsupported',
+      title: 'Camera Opened', detail: result.message, timestamp };
+  }
 
   // 1. Device Telemetry (DIRECT EXECUTION)
   if (actionType === 'CHECK_DEVICE_STATUS') {
