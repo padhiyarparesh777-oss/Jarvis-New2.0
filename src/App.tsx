@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Settings, ExternalLink, X, Mic, ChevronUp, ChevronDown, Radio, Waves } from 'lucide-react';
 import {
   ActiveTimerOrAlarm,
