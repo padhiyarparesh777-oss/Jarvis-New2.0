@@ -1371,6 +1371,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
                     { id: 'adaptive', title: 'Adaptive (Recommended)', desc: '"Sir" during briefings; "Boss" during actions' },
+                    { id: 'boss-sir', title: 'Boss + Sir', desc: 'Naturally use both, depending on the moment' },
                     { id: 'sir', title: 'Always "Sir"', desc: 'Polished, formal executive demeanor' },
                     { id: 'boss', title: 'Always "Boss"', desc: 'Friendly, modern personal assistant demeanor' },
                   ].map((addr) => (
@@ -1406,6 +1407,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <option value="concerned">Protective &amp; Concerned</option>
                   <option value="excited">Energetic &amp; Sharp</option>
                   <option value="reassuring">Grounded &amp; Reassuring</option>
+                  <option value="loving">Affectionate &amp; Caring</option>
+                  <option value="angry">Angry &amp; Firm (never abusive)</option>
+                  <option value="afraid">Fearful &amp; Cautious</option>
+                  <option value="sad">Sad &amp; Gentle</option>
+                  <option value="proud">Proud &amp; Celebratory</option>
+                  <option value="playful">Playful &amp; Witty</option>
                 </select>
               </div>
 
