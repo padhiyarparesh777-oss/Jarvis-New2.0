@@ -959,7 +959,7 @@ export default function App() {
       )}
 
       {/* Quick actions above the composer */}
-      <div className="fixed z-20 bottom-[calc(6.3rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center gap-2 px-4 pointer-events-none">
+      <div className="fixed z-20 bottom-[calc(10.5rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center gap-2 px-4 pointer-events-none">
         <button type="button" onClick={handleCoreTap} className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-[#E9BD70]/30 bg-[#E9BD70]/10 px-4 py-2.5 text-[11px] font-medium text-[#F5DBA7] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,.25)]">
           <span className="text-sm">◉</span> Voice
         </button>
