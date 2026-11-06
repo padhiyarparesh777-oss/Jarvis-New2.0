@@ -82,7 +82,7 @@ const deviceActionTool: FunctionDeclaration = {
       requiresConfirmation: {
         type: Type.BOOLEAN,
         description:
-          "True if this action is sensitive (like sending SMS/WhatsApp or placing a call) and must ask user confirmation.",
+          "True only for sending SMS/WhatsApp or other destructive/sensitive actions. DIAL_NUMBER is direct when the user explicitly asks to call; do not request an extra verbal confirmation.",
       },
     },
     required: ["actionType"],
@@ -230,8 +230,8 @@ Capabilities & Honesty Rules:
   2. Preparing an action (specify target, parameters, and intent).
   3. Executing an approved action (invoke executeDeviceAction).
   4. Reporting an actual action result (report truthfully based on device result).
-- Never claim a restricted native Android action, call, or message succeeded automatically without confirmation; state clearly that you have prepared the action.
-- Sensitive actions (placing phone calls, sending SMS, WhatsApp messages, deleting data, financial actions) require explicit user confirmation.
+- For an explicit user request to place a phone call (for example "call [contact]", "call karo", "phone lagao"), invoke executeDeviceAction with actionType DIAL_NUMBER and phoneNumberOrContact set to the exact contact name or number. Phone calls are direct actions and do NOT need an extra verbal confirmation from JARVIS; Android Phone permission and the native call flow still apply.
+- Sending SMS/WhatsApp, deleting data, and financial actions still require explicit confirmation. Never say a call is prepared or ask the user to confirm when the call action has been dispatched.
 ${memoryContext}`;
 }
 
@@ -285,7 +285,26 @@ function detectLocalCommandTools(userText: string): DetectedFunctionCall[] {
     }
   }
 
-  // 2. Set Timer (e.g. "timer for 5 minutes", "2 minute ka timer", "timer 30 seconds")
+  // 2. Explicit phone call (e.g. "call skhalan", "call mom", "skhalan ko call karo").
+  // Do not match generic "call him" because the recipient is ambiguous without prior contact context.
+  const callMatch =
+    lower.match(/^(?:please\s+)?(?:call|phone|dial)\s+(?:karo\s+)?(.+?)\s*$/i) ||
+    lower.match(/^(.+?)\s+ko\s+(?:call|phone)\s+(?:karo|lagao|kar do)\s*$/i) ||
+    lower.match(/^(?:call|phone)\s+(?:karo|kar do)\s+(.+?)\s*$/i);
+  if (callMatch && callMatch[1] && !/^(him|her|them|someone|somebody)$/i.test(callMatch[1].trim())) {
+    const recipient = callMatch[1].trim().replace(/[.!?]+$/, "");
+    calls.push({
+      name: "executeDeviceAction",
+      args: {
+        actionType: "DIAL_NUMBER",
+        phoneNumberOrContact: recipient,
+        requiresConfirmation: false,
+      },
+    });
+    return calls;
+  }
+
+  // 3. Set Timer (e.g. "timer for 5 minutes", "2 minute ka timer", "timer 30 seconds")
   if (/\b(timer)\b/i.test(lower)) {
     const minMatch = lower.match(/(\d+)\s*(min|minute|minutes|मिनट)/i);
     const secMatch = lower.match(/(\d+)\s*(sec|second|seconds|सेकंड)/i);
@@ -762,7 +781,7 @@ async function startServer() {
               } else if (actionType === "SET_TIMER") {
                 fallbackConfirm = `Timer started for ${fc.args.timerSeconds || 60} seconds.`;
               } else if (actionType === "DIAL_NUMBER") {
-                fallbackConfirm = `Prepared phone dialer for ${target}. Please confirm to place the call.`;
+                fallbackConfirm = `Calling ${target}.`;
               } else if (actionType === "SEND_SMS" || actionType === "SEND_WHATSAPP") {
                 fallbackConfirm = `Drafted message for ${target}. Please review and confirm before sending.`;
               }
