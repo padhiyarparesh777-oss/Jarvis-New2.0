@@ -192,10 +192,11 @@ export default function App() {
       try {
         const permission = await JarvisNativeDevice.canDrawFloatingOverlay();
         if (disposed) return;
-        if (permission.allowed && !overlayStarted) {
-          await JarvisNativeDevice.startFloatingOverlay();
-          overlayStarted = true;
-          if (!disposed) setFloatingOverlayEnabled(true);
+        // The floating island is background-only: hide it whenever the app is foregrounded.
+        if (permission.allowed) {
+          await JarvisNativeDevice.stopFloatingOverlay();
+          overlayStarted = false;
+          if (!disposed) setFloatingOverlayEnabled(false);
         }
       } catch {
         // Native bridge is unavailable in the browser/PWA; ignore gracefully.
