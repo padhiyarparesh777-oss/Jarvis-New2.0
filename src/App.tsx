@@ -872,7 +872,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-full h-full bg-black text-white overflow-hidden select-none">
+    <div className="jarvis-shell relative w-full h-full bg-black text-white overflow-hidden select-none">
       {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
       <NeuralNetworkCore
         interactionState={interactionState}
@@ -891,37 +891,36 @@ export default function App() {
         onFpsReport={handleFpsReport}
       />
 
-      {/* Premium glass dashboard header */}
-      <header className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top,1rem))] pb-4 pointer-events-none">
+      {/* Premium JARVIS command deck */}
+      <header className="jarvis-topbar fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-5 pt-[max(.8rem,env(safe-area-inset-top,.8rem))] pb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl border border-[#E9BD70]/30 bg-[#E9BD70]/10 flex items-center justify-center shadow-[0_0_28px_rgba(233,189,112,.12)]">
-            <span className="font-display text-sm text-[#F5DBA7]">J</span>
+          <div className="jarvis-mark w-11 h-11 rounded-2xl flex items-center justify-center">
+            <span className="font-display text-base text-[#F8D98E]">J</span>
           </div>
           <div>
-            <h1 className="font-display text-sm font-semibold tracking-[0.24em] text-white">JARVIS <span className="text-[#E9BD70]">AI</span></h1>
-            <p className="text-[9px] tracking-[0.22em] uppercase text-white/40 mt-1">Personal intelligence</p>
+            <h1 className="font-display text-[13px] font-semibold tracking-[.26em] text-white">JARVIS <span className="text-[#E9BD70]">AI</span></h1>
+            <p className="text-[9px] tracking-[.2em] uppercase text-white/40 mt-1">Personal intelligence system</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2">
+          <div className="jarvis-live-pill hidden sm:flex items-center gap-2 rounded-full px-3 py-2">
             <span className={`w-1.5 h-1.5 rounded-full ${backendStatus?.configured ? 'bg-emerald-400' : 'bg-amber-300'}`} />
-            <span className="text-[10px] text-white/60">{backendStatus?.configured ? 'SYSTEM ONLINE' : 'LOCAL MODE'}</span>
+            <span className="text-[9px] tracking-[.14em] text-white/65">{backendStatus?.configured ? 'CORE ONLINE' : 'LOCAL MODE'}</span>
           </div>
           <button type="button" onClick={() => setIsSettingsOpen(true)} aria-label="Open JARVIS AI Settings"
-            className="pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-2xl border border-[#E9BD70]/25 bg-white/[0.05] text-[#F5DBA7] backdrop-blur-xl shadow-lg">
+            className="jarvis-icon-button pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-2xl text-[#F5DBA7]">
             <Settings className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      {/* Welcome panel */}
-      <section className="fixed z-10 top-[max(5.8rem,calc(env(safe-area-inset-top)+4.8rem))] left-0 right-0 px-6 text-center pointer-events-none">
-        <p className="text-[10px] tracking-[0.32em] uppercase text-[#E9BD70]/75 mb-2">Your personal AI companion</p>
-        <h2 className="text-[clamp(1.35rem,5vw,2rem)] font-semibold tracking-tight text-white">Intelligence, at your command.</h2>
-        <p className="text-xs text-white/45 mt-2">Tap the core to speak or type a message below.</p>
-        <div className="inline-flex items-center gap-2 mt-4 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 backdrop-blur-xl">
-          <span className={`w-1.5 h-1.5 rounded-full ${interactionState === 'error' ? 'bg-rose-400' : interactionState === 'listening' ? 'bg-emerald-400 animate-pulse' : 'bg-[#E9BD70]'}`} />
-          <span className="text-[9px] tracking-[0.18em] uppercase text-white/65">{interactionState === 'idle' ? 'Ready for your command' : interactionState === 'listening' ? 'Listening to you' : interactionState === 'thinking' ? 'Thinking' : interactionState === 'speaking' ? 'Speaking' : interactionState === 'error' ? 'Needs attention' : 'Working'}</span>
+      <section className="jarvis-welcome fixed z-10 top-[max(5.6rem,calc(env(safe-area-inset-top)+4.7rem))] left-0 right-0 px-5 text-center pointer-events-none">
+        <p className="text-[9px] tracking-[.34em] uppercase text-[#E9BD70]/80 mb-2">Your AI. Your command.</p>
+        <h2 className="text-[clamp(1.45rem,5.6vw,2.15rem)] font-semibold tracking-tight text-white">How can I help you?</h2>
+        <p className="text-[11px] text-white/45 mt-2">Tap the core, speak naturally, or type below.</p>
+        <div className="inline-flex items-center gap-2 mt-3 rounded-full border border-white/10 bg-black/45 px-3.5 py-2 backdrop-blur-xl">
+          <span className={`w-1.5 h-1.5 rounded-full ${interactionState === 'error' ? 'bg-rose-400' : interactionState === 'listening' ? 'bg-emerald-400 animate-pulse' : interactionState === 'thinking' ? 'bg-sky-300 animate-pulse' : 'bg-[#E9BD70]'}`} />
+          <span className="text-[9px] tracking-[.16em] uppercase text-white/70">{interactionState === 'idle' ? 'Systems ready' : interactionState === 'listening' ? 'Listening to you' : interactionState === 'thinking' ? 'Thinking' : interactionState === 'speaking' ? 'Speaking' : interactionState === 'error' ? 'Needs attention' : 'Working'}</span>
         </div>
       </section>
 
@@ -958,18 +957,32 @@ export default function App() {
         </div>
       )}
 
-      {/* Quick actions above the composer */}
-      <div className="fixed z-20 bottom-[calc(10.5rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center gap-2 px-4 pointer-events-none">
-        <button type="button" onClick={handleCoreTap} className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-[#E9BD70]/30 bg-[#E9BD70]/10 px-4 py-2.5 text-[11px] font-medium text-[#F5DBA7] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,.25)]">
-          <span className="text-sm">◉</span> Voice
-        </button>
-        <button type="button" onClick={() => setIsChatDrawerOpen(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2.5 text-[11px] font-medium text-white/80 backdrop-blur-xl">
-          <span className="text-sm">▤</span> Conversations
-        </button>
-        <button type="button" onClick={() => setIsSettingsOpen(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2.5 text-[11px] font-medium text-white/80 backdrop-blur-xl">
-          <Settings className="w-3.5 h-3.5" /> Settings
-        </button>
-      </div>
+      {/* Command shortcuts */}
+      <section className="jarvis-command-dock fixed z-20 bottom-[calc(10.4rem+env(safe-area-inset-bottom))] left-0 right-0 px-4 pointer-events-none">
+        <div className="max-w-md mx-auto">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <span className="text-[9px] tracking-[.22em] uppercase text-[#E9BD70]/75">Quick command</span>
+            <span className="text-[9px] text-white/30">JARVIS CORE</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={handleCoreTap} className="jarvis-action-tile pointer-events-auto rounded-2xl px-3 py-3 text-left">
+              <span className="block text-lg text-[#F5DBA7] mb-1">◉</span>
+              <span className="block text-[11px] font-semibold text-white">Voice mode</span>
+              <span className="block text-[9px] text-white/40 mt-0.5">Talk to JARVIS</span>
+            </button>
+            <button type="button" onClick={() => setIsChatDrawerOpen(true)} className="jarvis-action-tile pointer-events-auto rounded-2xl px-3 py-3 text-left">
+              <span className="block text-lg text-[#F5DBA7] mb-1">▤</span>
+              <span className="block text-[11px] font-semibold text-white">Chats</span>
+              <span className="block text-[9px] text-white/40 mt-0.5">Your conversations</span>
+            </button>
+            <button type="button" onClick={() => setIsSettingsOpen(true)} className="jarvis-action-tile pointer-events-auto rounded-2xl px-3 py-3 text-left">
+              <span className="block text-lg text-[#F5DBA7] mb-1">⚙</span>
+              <span className="block text-[11px] font-semibold text-white">Settings</span>
+              <span className="block text-[9px] text-white/40 mt-0.5">Customize AI</span>
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* 4. Persistent Bottom Chat Bar with + Attachment Menu (Photo, Camera, File, PDF) */}
       <BottomChatComposer
