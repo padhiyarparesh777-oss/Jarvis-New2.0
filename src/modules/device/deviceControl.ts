@@ -86,6 +86,13 @@ interface JarvisDevicePlugin {
     listenerFunc: (data: { errorCode: number; error: string }) => void
   ): Promise<{ remove: () => Promise<void> }>;
 
+  // Quick Android controls (system panels remain user-confirmed)
+  openWifiSettings(): Promise<{ success: boolean; message: string }>;
+  openBluetoothSettings(): Promise<{ success: boolean; message: string }>;
+  setMediaVolume(options: { percent: number }): Promise<{ success: boolean; percent: number; message: string }>;
+  setScreenBrightness(options: { percent: number }): Promise<{ success: boolean; percent?: number; permissionRequired?: boolean; message: string }>;
+  openCameraCapture(): Promise<{ success: boolean; message: string }>;
+
   // Accessibility & UI gestures
   isAccessibilityServiceEnabled(): Promise<{ enabled: boolean; foregroundPackage?: string }>;
   openAccessibilitySettings(): Promise<{ success: boolean; message: string }>;
@@ -122,6 +129,33 @@ interface JarvisDevicePlugin {
   // Discovery & Contacts
   getInstalledApps(): Promise<{ success: boolean; apps: Array<{ packageName: string; appName: string; isSystemApp: boolean }> }>;
   searchContacts(options: { query?: string }): Promise<{ success: boolean; contacts: ContactInfo[] }>;
+}
+
+/** Open Android's user-controlled Wi-Fi panel. Android does not allow ordinary apps to toggle Wi-Fi silently. */
+export async function openWifiControls() {
+  if (!Capacitor.isNativePlatform()) return { success: false, message: 'Available in the Android app only.' };
+  return JarvisNativeDevice.openWifiSettings();
+}
+
+/** Open Android's user-controlled Bluetooth panel. */
+export async function openBluetoothControls() {
+  if (!Capacitor.isNativePlatform()) return { success: false, message: 'Available in the Android app only.' };
+  return JarvisNativeDevice.openBluetoothSettings();
+}
+
+export async function setMediaVolumePercent(percent: number) {
+  if (!Capacitor.isNativePlatform()) return { success: false, percent: 0, message: 'Available in the Android app only.' };
+  return JarvisNativeDevice.setMediaVolume({ percent: Math.max(0, Math.min(100, Math.round(percent))) });
+}
+
+export async function setScreenBrightnessPercent(percent: number) {
+  if (!Capacitor.isNativePlatform()) return { success: false, permissionRequired: false, message: 'Available in the Android app only.' };
+  return JarvisNativeDevice.setScreenBrightness({ percent: Math.max(1, Math.min(100, Math.round(percent))) });
+}
+
+export async function launchCameraForUserCapture() {
+  if (!Capacitor.isNativePlatform()) return { success: false, message: 'Available in the Android app only.' };
+  return JarvisNativeDevice.openCameraCapture();
 }
 
 export const JarvisNativePermissions = registerPlugin<JarvisPermissionsPlugin>('JarvisPermissions');
