@@ -460,16 +460,59 @@ async function generateFreeUnlimitedResponse(
 async function startServer() {
   const app = express();
 
-  // Permissive CORS headers for native Android Capacitor WebView (http://localhost, capacitor://localhost) & cross-origin clients
+  // Restrict browser origins while allowing Capacitor's local Android WebView origins.
+  const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const allowedOrigins = new Set([
+    "http://localhost",
+    "https://localhost",
+    "capacitor://localhost",
+    "http://127.0.0.1",
+    ...configuredOrigins,
+  ]);
   app.use((req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Requested-With, Accept"
-    );
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    } else if (origin && process.env.NODE_ENV !== "production") {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    } else if (origin && process.env.NODE_ENV === "production") {
+      res.status(403).json({ error: "ORIGIN_NOT_ALLOWED", message: "This origin is not allowed." });
+      return;
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+    res.setHeader("Access-Control-Max-Age", "600");
     if (req.method === "OPTIONS") {
       res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
+  // Lightweight per-instance rate limit for expensive AI endpoints.
+  // For multi-instance production deployments, replace with a shared Redis store.
+  const rateWindowMs = Math.max(10_000, Number(process.env.API_RATE_WINDOW_MS) || 60_000);
+  const rateMax = Math.max(5, Number(process.env.API_RATE_MAX) || 60);
+  const requestBuckets = new Map<string, { count: number; resetAt: number }>();
+  app.use("/api/ai", (req, res, next) => {
+    if (req.path === "/status" || req.path === "/health") return next();
+    const forwarded = req.headers["x-forwarded-for"];
+    const clientIp = (Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0]) || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    const bucket = requestBuckets.get(clientIp);
+    if (!bucket || bucket.resetAt <= now) {
+      requestBuckets.set(clientIp, { count: 1, resetAt: now + rateWindowMs });
+      return next();
+    }
+    bucket.count += 1;
+    if (bucket.count > rateMax) {
+      res.setHeader("Retry-After", String(Math.ceil((bucket.resetAt - now) / 1000)));
+      res.status(429).json({ error: "RATE_LIMITED", message: "Too many AI requests. Please wait and try again." });
       return;
     }
     next();
@@ -478,19 +521,24 @@ async function startServer() {
   app.use(express.json({ limit: "35mb" }));
 
   // 1. Check AI Backend Status & Model Availability
+  app.get("/api/ai/health", (_req, res) => {
+    res.status(200).json({ status: "ok", service: "jarvis-ai-backend", timestamp: new Date().toISOString() });
+  });
+
   app.get("/api/ai/status", async (_req, res) => {
-    const ai = getGeminiClient();
-    res.json({
-      configured: true,
-      provider: ai
-        ? "Auto-Hybrid (Google Gemini + Free Unlimited AI)"
-        : "Free Unlimited AI Engine (No Key Required)",
+    const geminiConfigured = Boolean(getGeminiClient());
+    res.status(200).json({
+      configured: geminiConfigured,
+      provider: geminiConfigured ? "Google Gemini" : "Unavailable - GEMINI_API_KEY missing",
+      aiProvider: "gemini",
+      geminiConfigured,
+      fallbackConfigured: false,
       models: ["gemini-3.1-flash-lite", "gemini-3.8-flash"],
       ttsModel: "gemini-3.8-flash-lite-tts",
       transcribeModel: "gemini-3.5-transcribe",
-      message: ai
-        ? "Hybrid AI Core online: Gemini API + Automatic Free Unlimited AI Fallback active (Zero Rate-Limit Interruption)."
-        : "Free Unlimited AI Engine active (Zero API Quota Limits).",
+      message: geminiConfigured
+        ? "Gemini API key is configured. Live model requests are verified separately when a chat is sent."
+        : "Gemini API key is missing. Add GEMINI_API_KEY in Render environment settings.",
     });
   });
 
