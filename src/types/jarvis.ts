@@ -14,9 +14,9 @@ export type PersonalityMode = 'tactical' | 'companion' | 'executive' | 'scholar'
 
 export type VoiceEngineMode = 'elevenlabs' | 'gemini-tts' | 'edge-neural';
 
-export type AddressPreference = 'adaptive' | 'sir' | 'boss';
+export type AddressPreference = 'adaptive' | 'sir' | 'boss' | 'boss-sir';
 
-export type EmotionMode = 'calm' | 'happy' | 'serious' | 'concerned' | 'excited' | 'reassuring' | 'adaptive';
+export type EmotionMode = 'calm' | 'happy' | 'serious' | 'concerned' | 'excited' | 'reassuring' | 'loving' | 'angry' | 'afraid' | 'sad' | 'proud' | 'playful' | 'adaptive';
 
 export type GeminiVoiceName = 'Charon' | 'Fenrir' | 'Puck';
 
