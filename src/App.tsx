@@ -540,7 +540,8 @@ export default function App() {
           setLiveCaption(localResult.reply);
           setCaptionSubtext('OFFLINE MODE · Local command engine');
           if (settings.voiceSpeech.voiceOutputEnabled) {
-            voiceEngine.speak(localResult.reply, settings);
+            setInteractionState('idle');
+            scheduleCaptionFadeOut(6500);
           } else {
             setInteractionState('idle');
             scheduleCaptionFadeOut(6500);
