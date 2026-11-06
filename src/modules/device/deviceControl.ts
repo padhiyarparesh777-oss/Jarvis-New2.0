@@ -728,28 +728,40 @@ export async function processDeviceAction(
 
   // 5. Phone Calls (CONFIRMATION REQUIRED)
   if (actionType === 'DIAL_NUMBER') {
-    let target = request.phoneNumberOrContact || '';
-    if (Capacitor.isNativePlatform() && target && !/^\+?\d+$/.test(target)) {
+    const originalTarget = (request.phoneNumberOrContact || '').trim();
+    let resolvedName = originalTarget;
+    let resolvedNumber = originalTarget;
+
+    // Resolve a contact name to its exact number before staging confirmation.
+    if (Capacitor.isNativePlatform() && originalTarget && !/^\\+?[\\d\\s().-]+$/.test(originalTarget)) {
       try {
-        const contactMatch = await JarvisNativeDevice.searchContacts({ query: target });
-        if (contactMatch.contacts && contactMatch.contacts.length > 0) {
-          const first = contactMatch.contacts[0];
-          target = `${first.displayName} (${first.phoneNumber || target})`;
+        const contactMatch = await JarvisNativeDevice.searchContacts({ query: originalTarget });
+        const first = contactMatch.contacts?.find((contact) => contact.phoneNumber?.trim());
+        if (first?.phoneNumber) {
+          resolvedName = first.displayName || originalTarget;
+          resolvedNumber = first.phoneNumber;
         }
       } catch {
-        // Ignore
+        // Keep the original target; the user can cancel if no number is found.
       }
     }
 
-    const sanitized = target.replace(/[^\d+]/g, '');
-    const telUri = sanitized ? `tel:${sanitized}` : `tel:`;
+    const sanitized = resolvedNumber.replace(/[^\\d+]/g, '');
+    const telUri = sanitized ? `tel:${sanitized}` : 'tel:';
+    const confirmedRequest: DeviceActionRequest = {
+      ...request,
+      // Store the resolved number, not "Contact Name (+91...)".
+      phoneNumberOrContact: sanitized || originalTarget,
+    };
 
     return {
       id,
-      request,
+      request: confirmedRequest,
       status: 'awaiting_confirmation',
-      title: `Place Phone Call: ${target || 'Dialer'}`,
-      detail: `Placing a call requires explicit confirmation. Recipient: ${target || 'Phone Dialer'}. Confirm to place call.`,
+      title: `Place Phone Call: ${resolvedName || sanitized || 'Dialer'}`,
+      detail: sanitized
+        ? `Confirm to open the dialer with ${resolvedName} (${sanitized}). Tap Call in Android to start the call.`
+        : `No phone number was found for ${resolvedName || 'this contact'}. Please cancel and choose a contact with a saved number.`,
       androidIntentUri: telUri,
       timestamp,
     };
