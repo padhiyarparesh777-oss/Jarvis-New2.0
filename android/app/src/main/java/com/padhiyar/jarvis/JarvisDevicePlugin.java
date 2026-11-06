@@ -1,5 +1,6 @@
 package com.padhiyar.jarvis;
 
+import android.Manifest;
 import android.app.ActivityManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -27,6 +28,7 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -143,6 +145,30 @@ public class JarvisDevicePlugin extends Plugin {
             }
         } catch (Exception e) {
             call.reject("Failed to launch " + targetApp + ": " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void placeCall(PluginCall call) {
+        String phoneNumber = call.getString("phoneNumber", "");
+        String sanitized = phoneNumber.replaceAll("[^0-9+*#]", "");
+        if (sanitized.isEmpty()) { call.reject("A valid phone number is required to place a call."); return; }
+        if (ContextCompat.checkSelfPermission(getContext(), Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            call.reject("Phone permission is required. Allow Phone permission and try again."); return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_CALL);
+            intent.setData(Uri.fromParts("tel", sanitized, null));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "Calling " + sanitized);
+            call.resolve(ret);
+        } catch (SecurityException e) {
+            call.reject("Phone permission is required to place this call: " + e.getMessage());
+        } catch (Exception e) {
+            call.reject("Unable to place call: " + e.getMessage());
         }
     }
 
