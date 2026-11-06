@@ -410,6 +410,131 @@ public class JarvisDevicePlugin extends Plugin {
     }
 
     // =========================================================================
+    // QUICK DEVICE CONTROLS
+    // =========================================================================
+
+    @PluginMethod
+    public void openWifiSettings(PluginCall call) {
+        try {
+            Intent intent;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                intent = new Intent(Settings.Panel.ACTION_WIFI);
+            } else {
+                intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "Opened Wi-Fi controls. Confirm the network change in Android.");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not open Wi-Fi controls: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void openBluetoothSettings(PluginCall call) {
+        try {
+            Intent intent;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                intent = new Intent(Settings.Panel.ACTION_BLUETOOTH);
+            } else {
+                intent = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "Opened Bluetooth controls. Confirm the device connection in Android.");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not open Bluetooth controls: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void setMediaVolume(PluginCall call) {
+        Integer percent = call.getInt("percent");
+        if (percent == null) {
+            call.reject("Volume percentage is required.");
+            return;
+        }
+        int safePercent = Math.max(0, Math.min(100, percent));
+        try {
+            android.media.AudioManager audio = (android.media.AudioManager) getContext()
+                .getSystemService(Context.AUDIO_SERVICE);
+            if (audio == null) {
+                call.reject("Android audio service is unavailable.");
+                return;
+            }
+            int max = audio.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+            int target = Math.round(max * (safePercent / 100f));
+            audio.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, target, 0);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("percent", Math.round(audio.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) * 100f / Math.max(1, max)));
+            ret.put("message", "Media volume updated.");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not change media volume: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void setScreenBrightness(PluginCall call) {
+        Integer percent = call.getInt("percent");
+        if (percent == null) {
+            call.reject("Brightness percentage is required.");
+            return;
+        }
+        int safePercent = Math.max(1, Math.min(100, percent));
+        try {
+            Context context = getContext();
+            if (!Settings.System.canWrite(context)) {
+                Intent permissionIntent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                    Uri.parse("package:" + context.getPackageName()));
+                permissionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(permissionIntent);
+                JSObject ret = new JSObject();
+                ret.put("success", false);
+                ret.put("permissionRequired", true);
+                ret.put("message", "Allow JARVIS to modify system settings, then retry brightness control.");
+                call.resolve(ret);
+                return;
+            }
+            int value = Math.round(255f * safePercent / 100f);
+            Settings.System.putInt(context.getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, value);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("percent", safePercent);
+            ret.put("message", "Screen brightness updated.");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not change screen brightness: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void openCameraCapture(PluginCall call) {
+        try {
+            Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (intent.resolveActivity(getContext().getPackageManager()) == null) {
+                call.reject("No camera app is available.");
+                return;
+            }
+            getContext().startActivity(intent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "Opened the camera. Capture is controlled by the user.");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not open camera: " + e.getMessage());
+        }
+    }
+
+    // =========================================================================
     // ACCESSIBILITY & SCREEN NAVIGATION
     // =========================================================================
 
