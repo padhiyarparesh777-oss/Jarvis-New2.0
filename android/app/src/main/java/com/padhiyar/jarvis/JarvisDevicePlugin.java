@@ -1052,4 +1052,72 @@ public class JarvisDevicePlugin extends Plugin {
         }
         super.handleOnDestroy();
     }
+
+    // =========================================================================
+    // User-enabled Dynamic Island / floating launcher overlay
+    // =========================================================================
+
+    @PluginMethod
+    public void canDrawFloatingOverlay(PluginCall call) {
+        boolean allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+            || Settings.canDrawOverlays(getContext());
+        JSObject ret = new JSObject();
+        ret.put("allowed", allowed);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestFloatingOverlayPermission(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !Settings.canDrawOverlays(getContext())) {
+                Intent intent = new Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getContext().getPackageName())
+                );
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+            }
+            JSObject ret = new JSObject();
+            ret.put("openedSettings", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Unable to open overlay permission settings: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void startFloatingOverlay(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !Settings.canDrawOverlays(getContext())) {
+                call.reject("Please allow JARVIS to display over other apps first.");
+                return;
+            }
+            Intent intent = new Intent(getContext(), JarvisFloatingOverlayService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getContext().startForegroundService(intent);
+            } else {
+                getContext().startService(intent);
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Unable to start floating JARVIS: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopFloatingOverlay(PluginCall call) {
+        try {
+            getContext().stopService(new Intent(getContext(), JarvisFloatingOverlayService.class));
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Unable to stop floating JARVIS: " + e.getMessage());
+        }
+    }
+
 }
