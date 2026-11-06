@@ -38,7 +38,7 @@ export const API_PLUGIN_CATALOG: ApiPluginDefinition[] = [
 export function getApiPluginConnectUrl(id: ApiPluginId): string | null {
   const plugin = API_PLUGIN_CATALOG.find((item) => item.id === id);
   if (!plugin) return null;
-  const env = import.meta.env as Record<string, string | undefined>;
+  const env = import.meta.env as unknown as Record<string, string | undefined>;
   const configured = env[plugin.connectUrlEnv]?.trim();
   if (!configured) return null;
 
