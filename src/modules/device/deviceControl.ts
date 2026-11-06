@@ -95,6 +95,12 @@ interface JarvisDevicePlugin {
   performInputText(options: { text: string; target?: string }): Promise<{ success: boolean; message: string }>;
   performGlobalAction(options: { action: 'BACK' | 'HOME' | 'NOTIFICATIONS' }): Promise<{ success: boolean; action: string }>;
 
+  // User-enabled floating Dynamic Island overlay
+  canDrawFloatingOverlay(): Promise<{ allowed: boolean }>;
+  requestFloatingOverlayPermission(): Promise<{ openedSettings: boolean }>;
+  startFloatingOverlay(): Promise<{ success: boolean }>;
+  stopFloatingOverlay(): Promise<{ success: boolean }>;
+
   // Background Assistant Foreground Service
   isBackgroundServiceRunning(): Promise<{ running: boolean }>;
   startBackgroundService(): Promise<{ success: boolean; running: boolean }>;
