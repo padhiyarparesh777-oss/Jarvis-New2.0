@@ -103,7 +103,12 @@ public class JarvisSystemControlPlugin extends Plugin {
         else call.resolve(result(true, "Overlay permission is not separately required on this Android version."));
     }
     @PluginMethod public void openAppDetailsSettings(PluginCall call) {
-        launchSettings(call, Settings.ACTION_APPLICATION_DETAILS_SETTINGS + ":" + getContext().getPackageName());
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve(result(true, "Opened JARVIS app details settings."));
+        } catch (Exception e) { call.resolve(result(false, e.getMessage())); }
     }
 
     @PluginMethod
