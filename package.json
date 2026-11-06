@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test/jarvis.test.ts"
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
