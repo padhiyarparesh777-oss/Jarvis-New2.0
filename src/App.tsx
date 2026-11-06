@@ -891,21 +891,39 @@ export default function App() {
         onFpsReport={handleFpsReport}
       />
 
-      {/* 2. Minimal Top Header: "JARVIS AI" top-left and ONE gold Settings gear top-right */}
-      <header className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-6 pt-[max(1.1rem,env(safe-area-inset-top,1.1rem))] pb-3 pointer-events-none">
-        <h1 className="font-display text-sm sm:text-base font-semibold tracking-[0.26em] text-white/95 whitespace-nowrap shrink-0">
-          JARVIS <span className="text-[#FFC928]">AI</span>
-        </h1>
-
-        <button
-          type="button"
-          onClick={() => setIsSettingsOpen(true)}
-          aria-label="Open JARVIS AI Settings"
-          className="pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-[#FFC928] hover:text-[#FFDF70] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FFC928] transition-colors"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
+      {/* Premium glass dashboard header */}
+      <header className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top,1rem))] pb-4 pointer-events-none">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl border border-[#E9BD70]/30 bg-[#E9BD70]/10 flex items-center justify-center shadow-[0_0_28px_rgba(233,189,112,.12)]">
+            <span className="font-display text-sm text-[#F5DBA7]">J</span>
+          </div>
+          <div>
+            <h1 className="font-display text-sm font-semibold tracking-[0.24em] text-white">JARVIS <span className="text-[#E9BD70]">AI</span></h1>
+            <p className="text-[9px] tracking-[0.22em] uppercase text-white/40 mt-1">Personal intelligence</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2">
+            <span className={`w-1.5 h-1.5 rounded-full ${backendStatus?.configured ? 'bg-emerald-400' : 'bg-amber-300'}`} />
+            <span className="text-[10px] text-white/60">{backendStatus?.configured ? 'SYSTEM ONLINE' : 'LOCAL MODE'}</span>
+          </div>
+          <button type="button" onClick={() => setIsSettingsOpen(true)} aria-label="Open JARVIS AI Settings"
+            className="pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-2xl border border-[#E9BD70]/25 bg-white/[0.05] text-[#F5DBA7] backdrop-blur-xl shadow-lg">
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
       </header>
+
+      {/* Welcome panel */}
+      <section className="fixed z-10 top-[max(5.8rem,calc(env(safe-area-inset-top)+4.8rem))] left-0 right-0 px-6 text-center pointer-events-none">
+        <p className="text-[10px] tracking-[0.32em] uppercase text-[#E9BD70]/75 mb-2">Your personal AI companion</p>
+        <h2 className="text-[clamp(1.35rem,5vw,2rem)] font-semibold tracking-tight text-white">Intelligence, at your command.</h2>
+        <p className="text-xs text-white/45 mt-2">Tap the core to speak or type a message below.</p>
+        <div className="inline-flex items-center gap-2 mt-4 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5 backdrop-blur-xl">
+          <span className={`w-1.5 h-1.5 rounded-full ${interactionState === 'error' ? 'bg-rose-400' : interactionState === 'listening' ? 'bg-emerald-400 animate-pulse' : 'bg-[#E9BD70]'}`} />
+          <span className="text-[9px] tracking-[0.18em] uppercase text-white/65">{interactionState === 'idle' ? 'Ready for your command' : interactionState === 'listening' ? 'Listening to you' : interactionState === 'thinking' ? 'Thinking' : interactionState === 'speaking' ? 'Speaking' : interactionState === 'error' ? 'Needs attention' : 'Working'}</span>
+        </div>
+      </section>
 
       {/* 3. Pending Android Intent Confirmation Banner (Only when user confirmation is required) */}
       {pendingDeviceAction && (
@@ -939,6 +957,19 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Quick actions above the composer */}
+      <div className="fixed z-20 bottom-[calc(6.3rem+env(safe-area-inset-bottom))] left-0 right-0 flex justify-center gap-2 px-4 pointer-events-none">
+        <button type="button" onClick={handleCoreTap} className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-[#E9BD70]/30 bg-[#E9BD70]/10 px-4 py-2.5 text-[11px] font-medium text-[#F5DBA7] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,.25)]">
+          <span className="text-sm">◉</span> Voice
+        </button>
+        <button type="button" onClick={() => setIsChatDrawerOpen(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2.5 text-[11px] font-medium text-white/80 backdrop-blur-xl">
+          <span className="text-sm">▤</span> Conversations
+        </button>
+        <button type="button" onClick={() => setIsSettingsOpen(true)} className="pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2.5 text-[11px] font-medium text-white/80 backdrop-blur-xl">
+          <Settings className="w-3.5 h-3.5" /> Settings
+        </button>
+      </div>
 
       {/* 4. Persistent Bottom Chat Bar with + Attachment Menu (Photo, Camera, File, PDF) */}
       <BottomChatComposer
