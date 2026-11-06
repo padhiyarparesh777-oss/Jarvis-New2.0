@@ -975,10 +975,7 @@ export default function App() {
           <div className="jarvis-mark w-11 h-11 rounded-2xl flex items-center justify-center">
             <span className="font-display text-base text-[#F8D98E]">J</span>
           </div>
-          <div>
-            <h1 className="font-display text-[13px] font-semibold tracking-[.26em] text-white">JARVIS <span className="text-[#E9BD70]">AI</span></h1>
-            <p className="text-[9px] tracking-[.2em] uppercase text-white/40 mt-1">Personal intelligence system</p>
-          </div>
+          {/* Brand text removed for a clean, icon-only header. */}
         </div>
         <div className="flex items-center gap-2">
           <div className="jarvis-live-pill hidden sm:flex items-center gap-2 rounded-full px-3 py-2">
@@ -998,10 +995,7 @@ export default function App() {
         <div className={`jarvis-island ${isIslandExpanded ? 'is-expanded' : ''} ${interactionState}`}>
           <button type="button" className="jarvis-island-main" onClick={() => setIsIslandExpanded((v) => !v)} aria-expanded={isIslandExpanded} aria-label="Expand JARVIS Dynamic Island">
             <span className="jarvis-island-core"><Waves size={15} /></span>
-            <span className="jarvis-island-copy">
-              <strong>JARVIS</strong>
-              <small>{interactionState === 'listening' ? 'LISTENING' : interactionState === 'thinking' ? 'THINKING' : interactionState === 'speaking' ? 'SPEAKING' : interactionState === 'error' ? 'ATTENTION' : 'READY'}</small>
-            </span>
+            {/* Compact visual-only island: no status labels. */}
             <span className="jarvis-island-bars" aria-hidden="true"><i /><i /><i /><i /><i /></span>
             {isIslandExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
           </button>
@@ -1018,15 +1012,7 @@ export default function App() {
         </div>
       </div>
 
-      <section className="jarvis-welcome fixed z-10 top-[max(5.6rem,calc(env(safe-area-inset-top)+4.7rem))] left-0 right-0 px-5 text-center pointer-events-none">
-        <p className="text-[9px] tracking-[.34em] uppercase text-[#E9BD70]/80 mb-2">Your AI. Your command.</p>
-        <h2 className="text-[clamp(1.45rem,5.6vw,2.15rem)] font-semibold tracking-tight text-white">How can I help you?</h2>
-        <p className="text-[11px] text-white/45 mt-2">Tap the core, speak naturally, or type below.</p>
-        <div className="inline-flex items-center gap-2 mt-3 rounded-full border border-white/10 bg-black/45 px-3.5 py-2 backdrop-blur-xl">
-          <span className={`w-1.5 h-1.5 rounded-full ${interactionState === 'error' ? 'bg-rose-400' : interactionState === 'listening' ? 'bg-emerald-400 animate-pulse' : interactionState === 'thinking' ? 'bg-sky-300 animate-pulse' : 'bg-[#E9BD70]'}`} />
-          <span className="text-[9px] tracking-[.16em] uppercase text-white/70">{interactionState === 'idle' ? 'Systems ready' : interactionState === 'listening' ? 'Listening to you' : interactionState === 'thinking' ? 'Thinking' : interactionState === 'speaking' ? 'Speaking' : interactionState === 'error' ? 'Needs attention' : 'Working'}</span>
-        </div>
-      </section>
+      {/* Welcome and system-status text removed for a clean home screen. */}
 
       {/* 3. Pending Android Intent Confirmation Banner (Only when user confirmation is required) */}
       {pendingDeviceAction && (
@@ -1076,10 +1062,7 @@ export default function App() {
       {/* Command shortcuts */}
       <section className="jarvis-command-dock fixed z-20 bottom-[calc(10.4rem+env(safe-area-inset-bottom))] left-0 right-0 px-4 pointer-events-none">
         <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-[9px] tracking-[.22em] uppercase text-[#E9BD70]/75">Quick command</span>
-            <span className="text-[9px] text-white/30">JARVIS CORE</span>
-          </div>
+          {/* Keep the three shortcut cards; remove the heading labels above them. */}
           <div className="grid grid-cols-3 gap-2">
             <button type="button" onClick={handleCoreTap} className="jarvis-action-tile pointer-events-auto rounded-2xl px-3 py-3 text-left">
               <span className="block text-lg text-[#F5DBA7] mb-1">◉</span>
