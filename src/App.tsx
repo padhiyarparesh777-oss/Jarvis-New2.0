@@ -936,9 +936,21 @@ export default function App() {
               type="button"
               onClick={async () => {
                 const action = pendingDeviceAction;
-                setPendingDeviceAction(null);
-                const res = await executeNativeDeviceAction(action, settings);
-                setCaptionSubtext(res.message);
+                if (!action) return;
+                try {
+                  const res = await executeNativeDeviceAction(action, settings);
+                  if (!res.success) {
+                    triggerTransientErrorState(res.message || 'Could not open the Android dialer.');
+                    return;
+                  }
+                  setPendingDeviceAction(null);
+                  setLiveCaption(action.request.actionType === 'DIAL_NUMBER' ? 'Dialer opened' : 'Action confirmed');
+                  setCaptionSubtext(res.message);
+                  scheduleCaptionFadeOut(5000);
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : 'Android action failed. Check JARVIS permissions and try again.';
+                  triggerTransientErrorState(message);
+                }
               }}
               className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#FFC928] text-black font-semibold inline-flex items-center gap-1 whitespace-nowrap shrink-0 hover:bg-[#FFDF70] transition-colors"
             >
