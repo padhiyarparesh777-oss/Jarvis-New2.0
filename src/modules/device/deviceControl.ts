@@ -603,6 +603,11 @@ export function isActionDirectExecution(
     case 'WEB_SEARCH_INTENT':
     case 'SET_ALARM':
     case 'SET_TIMER':
+    case 'OPEN_WIFI_SETTINGS':
+    case 'OPEN_BLUETOOTH_SETTINGS':
+    case 'SET_MEDIA_VOLUME':
+    case 'SET_SCREEN_BRIGHTNESS':
+    case 'OPEN_CAMERA':
       return true;
     default:
       return false;
@@ -671,6 +676,23 @@ export async function processDeviceAction(
   }
 
   const actionType = request.actionType;
+
+  if (actionType === 'READ_NOTIFICATIONS') {
+    if (!Capacitor.isNativePlatform()) {
+      return { id, request, status: 'unsupported', title: 'Android Only', detail: 'Notification reading is available in the Android app.', timestamp };
+    }
+    const permission = await JarvisNativeDevice.isNotificationListenerEnabled();
+    if (!permission.enabled || !permission.connected) {
+      await JarvisNativeDevice.openNotificationListenerSettings();
+      return { id, request, status: 'permission_missing', title: 'Notification Access Required',
+        detail: 'Enable JARVIS in Android Notification Access settings, then ask again to read recent notifications.', timestamp };
+    }
+    const result = await JarvisNativeDevice.getRecentNotifications();
+    const summary = result.notifications.length
+      ? result.notifications.slice(-10).map((item) => `${item.title}: ${item.text}`).join(' | ')
+      : 'There are no recent readable notifications.';
+    return { id, request, status: 'confirmed', title: 'Recent Notifications', detail: summary, timestamp };
+  }
 
   // Quick device controls (system panels are opened for the user; no silent Wi-Fi/Bluetooth toggles).
   if (actionType === 'OPEN_WIFI_SETTINGS' || actionType === 'OPEN_BLUETOOTH_SETTINGS') {
