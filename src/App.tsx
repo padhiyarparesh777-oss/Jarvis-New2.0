@@ -975,7 +975,10 @@ export default function App() {
           <div className="jarvis-mark w-11 h-11 rounded-2xl flex items-center justify-center">
             <span className="font-display text-base text-[#F8D98E]">J</span>
           </div>
-          {/* Brand text removed for a clean, icon-only header. */}
+          <div className="flex flex-col leading-tight">
+            <span className="font-display text-[13px] font-semibold tracking-[.24em] text-white">JARVIS <span className="text-[#E9BD70]">AI</span></span>
+            <span className="mt-1 text-[10px] tracking-[.16em] text-white/55">TITTU PADHIYAR</span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="jarvis-live-pill hidden sm:flex items-center gap-2 rounded-full px-3 py-2">
@@ -990,27 +993,7 @@ export default function App() {
       </header>
 
 
-      {/* Dynamic Island-inspired voice control pill */}
-      <div className="jarvis-island-wrap fixed z-[45] top-[max(4.65rem,calc(env(safe-area-inset-top)+4.1rem))] left-1/2 -translate-x-1/2">
-        <div className={`jarvis-island ${isIslandExpanded ? 'is-expanded' : ''} ${interactionState}`}>
-          <button type="button" className="jarvis-island-main" onClick={() => setIsIslandExpanded((v) => !v)} aria-expanded={isIslandExpanded} aria-label="Expand JARVIS Dynamic Island">
-            <span className="jarvis-island-core"><Waves size={15} /></span>
-            {/* Compact visual-only island: no status labels. */}
-            <span className="jarvis-island-bars" aria-hidden="true"><i /><i /><i /><i /><i /></span>
-            {isIslandExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          </button>
-          {isIslandExpanded && (
-            <div className="jarvis-island-panel">
-              <p>{liveCaption || 'Your voice-first AI assistant is ready.'}</p>
-              <div className="jarvis-island-actions">
-                <button type="button" onClick={handleCoreTap}><Mic size={14} /> {interactionState === 'listening' ? 'Finish' : interactionState === 'speaking' ? 'Stop' : 'Talk'}</button>
-                <button type="button" onClick={handleToggleFloatingOverlay}><Radio size={14} /> {floatingOverlayEnabled ? 'Hide overlay' : 'Float above apps'}</button>
-              </div>
-              <span className="jarvis-island-hint">Floating overlay requires Android “Display over other apps” permission.</span>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Main screen intentionally keeps the neural orbit unobstructed. */}
 
       {/* Welcome and system-status text removed for a clean home screen. */}
 
@@ -1059,36 +1042,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Command shortcuts */}
-      <section className="jarvis-command-dock fixed z-20 bottom-[calc(10.4rem+env(safe-area-inset-bottom))] left-0 right-0 px-4 pointer-events-none">
-        <div className="max-w-md mx-auto">
-          {/* Keep the three shortcut cards; remove the heading labels above them. */}
-          <div className="grid grid-cols-3 gap-2">
-            <button type="button" onClick={handleCoreTap} className="jarvis-action-tile pointer-events-auto rounded-2xl px-3 py-3 text-left">
-              <span className="block text-lg text-[#F5DBA7] mb-1">◉</span>
-              <span className="block text-[11px] font-semibold text-white">Voice mode</span>
-              <span className="block text-[9px] text-white/40 mt-0.5">Talk to JARVIS</span>
-            </button>
-            <button type="button" onClick={() => setIsChatDrawerOpen(true)} className="jarvis-action-tile pointer-events-auto rounded-2xl px-3 py-3 text-left">
-              <span className="block text-lg text-[#F5DBA7] mb-1">▤</span>
-              <span className="block text-[11px] font-semibold text-white">Chats</span>
-              <span className="block text-[9px] text-white/40 mt-0.5">Your conversations</span>
-            </button>
-            <button type="button" onClick={() => setIsSettingsOpen(true)} className="jarvis-action-tile pointer-events-auto rounded-2xl px-3 py-3 text-left">
-              <span className="block text-lg text-[#F5DBA7] mb-1">⚙</span>
-              <span className="block text-[11px] font-semibold text-white">Settings</span>
-              <span className="block text-[9px] text-white/40 mt-0.5">Customize AI</span>
-            </button>
-          </div>
-        </div>
-      </section>
+      {/* Home shortcut cards removed for a minimal orbit-first layout. */}
 
       {/* 4. Persistent Bottom Chat Bar with + Attachment Menu (Photo, Camera, File, PDF) */}
       <BottomChatComposer
         interactionState={interactionState}
         liveCaption={liveCaption}
         captionSubtext={captionSubtext}
-        showSubtleCaptions={settings.appearance.showSubtleCaptions}
+        showSubtleCaptions={false}
         enterToSend={settings.chatInterface.enterToSend}
         maxUploadSizeMb={settings.chatInterface.maxUploadSizeMb}
         threads={threads}
