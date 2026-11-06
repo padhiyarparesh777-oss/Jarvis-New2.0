@@ -18,6 +18,8 @@ import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.AlarmClock;
 import android.provider.ContactsContract;
@@ -225,6 +227,11 @@ public class JarvisDevicePlugin extends Plugin {
         String phoneNumber = call.getString("phoneNumber", "");
         String message = call.getString("message", "");
         String cleanPhone = phoneNumber.replaceAll("[^0-9]", "");
+        boolean confirmed = Boolean.TRUE.equals(call.getBoolean("confirmed", false));
+        if (!confirmed || !cleanPhone.matches("[0-9]{8,15}") || message.trim().isEmpty()) {
+            call.reject("Explicit confirmation, full phone number and nonempty message required.");
+            return;
+        }
 
         try {
             Context context = getContext();
@@ -252,7 +259,13 @@ public class JarvisDevicePlugin extends Plugin {
 
             JSObject ret = new JSObject();
             ret.put("success", true);
-            ret.put("message", "Opened WhatsApp message composer");
+            ret.put("message", "WhatsApp composer opened; JARVIS will attempt a verified Send tap. Check WhatsApp if it does not send.");
+            if (intent.resolveActivity(pm) != null) {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    JarvisAccessibilityService service = JarvisAccessibilityService.getInstance();
+                    if (service != null) service.tapConfirmedWhatsAppSend(message);
+                }, 1800);
+            }
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Failed to open WhatsApp: " + e.getMessage());

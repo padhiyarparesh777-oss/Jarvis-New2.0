@@ -113,6 +113,51 @@ public class JarvisAccessibilityService extends AccessibilityService {
         }
     }
 
+    /** One-shot, user-confirmed send: never click Send in another app or on a changed draft. */
+    public boolean tapConfirmedWhatsAppSend(String expectedMessage) {
+        if (!"com.whatsapp".equals(getForegroundPackage()) || expectedMessage == null || expectedMessage.isEmpty()) return false;
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return false;
+        try {
+            return hasExactEditableText(root, expectedMessage) && findWhatsAppSendButton(root);
+        } finally {
+            root.recycle();
+        }
+    }
+
+    private boolean hasExactEditableText(AccessibilityNodeInfo node, String expected) {
+        if (node == null || !node.isVisibleToUser() || node.isPassword()) return false;
+        CharSequence value = node.getText();
+        if (node.isEditable() && value != null && expected.equals(value.toString())) return true;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                boolean found = hasExactEditableText(child, expected);
+                child.recycle();
+                if (found) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean findWhatsAppSendButton(AccessibilityNodeInfo node) {
+        if (node == null || !node.isVisibleToUser() || !node.isEnabled()) return false;
+        CharSequence desc = node.getContentDescription();
+        String id = node.getViewIdResourceName();
+        boolean matches = (desc != null && "send".equalsIgnoreCase(desc.toString().trim()))
+            || (id != null && id.endsWith(":id/send"));
+        if (matches && node.isClickable()) return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                boolean found = findWhatsAppSendButton(child);
+                child.recycle();
+                if (found) return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Taps a control matching target text or view ID.
      */

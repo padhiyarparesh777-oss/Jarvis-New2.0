@@ -51,7 +51,7 @@ interface JarvisDevicePlugin {
   openDialer(options: { phoneNumber?: string }): Promise<{ success: boolean; message: string }>;
   placeCall(options: { phoneNumber: string }): Promise<{ success: boolean; message: string }>;
   sendSms(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
-  sendWhatsApp(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
+  sendWhatsApp(options: { phoneNumber?: string; message?: string; confirmed?: boolean }): Promise<{ success: boolean; message: string }>;
   setAlarm(options: { hour: number; minute: number; label?: string; skipUi?: boolean }): Promise<{ success: boolean; message: string }>;
   setTimer(options: { seconds: number; label?: string; skipUi?: boolean }): Promise<{ success: boolean; message: string }>;
   getDeviceTelemetry(): Promise<{
@@ -537,7 +537,7 @@ export async function executeNativeDeviceAction(
     }
 
     if (actionType === 'SEND_WHATSAPP') {
-      return await JarvisNativeDevice.sendWhatsApp({ phoneNumber: req.phoneNumberOrContact, message: req.label });
+      return await JarvisNativeDevice.sendWhatsApp({ phoneNumber: req.phoneNumberOrContact, message: req.label, confirmed: true });
     }
 
     if (actionType === 'SET_ALARM') {

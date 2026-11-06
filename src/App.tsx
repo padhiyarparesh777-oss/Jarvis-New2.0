@@ -473,12 +473,41 @@ export default function App() {
     [activeThreadId, settings.memory.saveHistory, settings.privacy.ephemeralSession]
   );
 
+  const confirmPendingMessage = useCallback(async (action: DeviceActionResult) => {
+    try {
+      const result = await executeNativeDeviceAction(action, settings);
+      if (!result.success) throw new Error(result.message || 'Could not open message composer.');
+      setPendingDeviceAction(null);
+      setLiveCaption('WhatsApp composer opened');
+      setCaptionSubtext(result.message);
+      setInteractionState('idle');
+      scheduleCaptionFadeOut(6500);
+    } catch (error) {
+      triggerTransientErrorState(error instanceof Error ? error.message : 'Message action failed.');
+    }
+  }, [settings, scheduleCaptionFadeOut, triggerTransientErrorState]);
+
   const processUserTurn = useCallback(
     async (text: string, attachments: ChatAttachment[] = [], sttDurationMs = 0) => {
       const cleanInput = text.trim();
       if (!cleanInput && attachments.length === 0) {
         setInteractionState('idle');
         return;
+      }
+
+      if (pendingDeviceAction?.request.actionType === 'SEND_WHATSAPP' && attachments.length === 0) {
+        const answer = cleanInput.toLowerCase().trim().replace(/[.!?]/g, '');
+        if (/^(yes|yes send|yes send it|send|send it|confirm|haan|ha|han|bhejo|bhej do|हाँ|भेज दो)$/i.test(answer)) {
+          appendMessageToActiveThread({ id: 'msg-' + Date.now() + '-confirm', role: 'user', content: cleanInput, timestamp: Date.now() });
+          await confirmPendingMessage(pendingDeviceAction);
+          return;
+        }
+        if (/^(no|cancel|stop|nahi|nahin|mat bhejo|नहीं|रद्द)$/i.test(answer)) {
+          setPendingDeviceAction(null);
+          setLiveCaption('Message cancelled');
+          setInteractionState('idle');
+          return;
+        }
       }
 
       const turnStartTime = Date.now();
@@ -700,6 +729,8 @@ export default function App() {
       handlePlannerToolAction,
       scheduleCaptionFadeOut,
       triggerTransientErrorState,
+      pendingDeviceAction,
+      confirmPendingMessage,
     ]
   );
 
@@ -1034,20 +1065,7 @@ export default function App() {
               onClick={async () => {
                 const action = pendingDeviceAction;
                 if (!action) return;
-                try {
-                  const res = await executeNativeDeviceAction(action, settings);
-                  if (!res.success) {
-                    triggerTransientErrorState(res.message || 'Could not open the Android dialer.');
-                    return;
-                  }
-                  setPendingDeviceAction(null);
-                  setLiveCaption(action.request.actionType === 'DIAL_NUMBER' ? 'Dialer opened' : 'Action confirmed');
-                  setCaptionSubtext(res.message);
-                  scheduleCaptionFadeOut(5000);
-                } catch (error) {
-                  const message = error instanceof Error ? error.message : 'Android action failed. Check JARVIS permissions and try again.';
-                  triggerTransientErrorState(message);
-                }
+                await confirmPendingMessage(action);
               }}
               className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#FFC928] text-black font-semibold inline-flex items-center gap-1 whitespace-nowrap shrink-0 hover:bg-[#FFDF70] transition-colors"
             >
