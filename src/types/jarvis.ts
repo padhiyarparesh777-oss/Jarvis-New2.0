@@ -259,7 +259,9 @@ export type DeviceActionType =
   | 'OPEN_BLUETOOTH_SETTINGS'
   | 'SET_MEDIA_VOLUME'
   | 'SET_SCREEN_BRIGHTNESS'
-  | 'OPEN_CAMERA';
+  | 'OPEN_CAMERA'
+  | 'SET_FLASHLIGHT'
+  | 'CHECK_NETWORK_STATUS';
 
 export interface DeviceActionRequest {
   actionType: DeviceActionType;
