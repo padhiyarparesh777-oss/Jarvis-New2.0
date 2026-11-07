@@ -10,6 +10,7 @@ import {
   ThinkingLevel,
 } from "@google/genai";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
+import { registerProviderRoutes } from "./src/server/providerRoutes.js";
 
 dotenv.config();
 
@@ -559,6 +560,9 @@ async function startServer() {
   });
 
   app.use(express.json({ limit: "35mb" }));
+
+  // Optional OpenRouter and Ollama adapters; provider secrets remain server-side.
+  registerProviderRoutes(app);
 
   // 1. Check AI Backend Status & Model Availability
   app.get("/api/ai/health", (_req, res) => {
