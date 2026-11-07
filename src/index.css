@@ -19,8 +19,8 @@
     height: 100%;
     margin: 0;
     padding: 0;
-    background-color: #000000;
-    color: #FFFFFF;
+    background-color: #F5F7FB;
+    color: #172033;
     font-family: var(--font-sans);
     overflow: hidden;
     user-select: none;
@@ -43,14 +43,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #050505;
+  background: #E9EDF7;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 201, 40, 0.25);
+  background: rgba(101, 120, 247, 0.25);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 201, 40, 0.45);
+  background: rgba(101, 120, 247, 0.45);
 }
