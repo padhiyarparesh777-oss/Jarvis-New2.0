@@ -9,7 +9,6 @@ export type SystemCapabilities = {
   accessibilityEnabled: boolean;
   notificationListenerEnabled: boolean;
   deviceAdminEnabled: boolean;
-  deviceOwnerEnabled: boolean;
   dndAccess: boolean;
   usageAccess: boolean;
   exactAlarmsAllowed: boolean;

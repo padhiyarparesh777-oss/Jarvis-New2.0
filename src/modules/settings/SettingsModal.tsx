@@ -60,6 +60,7 @@ import {
   requestPhonePermission,
 } from '../device/deviceControl';
 import { voiceEngine } from '../voice/VoiceEngine';
+import { JarvisSystemControl, type SystemCapabilities } from '../device/systemControl';
 import { aiService } from '../ai/aiService';
 import { API_PLUGIN_CATALOG, beginApiPluginConnection, getApiPluginConnectUrl, type ApiPluginId } from '../plugins/pluginHub';
 
@@ -168,6 +169,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   latencyMetrics,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('brain');
+  const [systemCapabilities, setSystemCapabilities] = useState<SystemCapabilities | null>(null);
 
   // Memory inputs
   const [newMemoryText, setNewMemoryText] = useState('');
@@ -207,6 +209,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Diagnostics info from voice backend
   const [ttsDiagnostics, setTtsDiagnostics] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'security' && Capacitor.isNativePlatform()) {
+      JarvisSystemControl.getCapabilities().then(setSystemCapabilities).catch(() => setSystemCapabilities(null));
+    }
+  }, [isOpen, activeTab]);
 
   useEffect(() => {
     if (isOpen && activeTab === 'voice') {
@@ -1540,6 +1548,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'security' && (
             <div className="space-y-6">
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-2">
+                <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold">JARVIS Management Status</div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-white/70">Device Admin</span>
+                  <span className={systemCapabilities?.deviceAdminEnabled ? 'text-emerald-400' : 'text-white/50'}>
+                    {systemCapabilities ? (systemCapabilities.deviceAdminEnabled ? 'Active' : 'Not active') : 'Checking...'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-white/70">Device Owner</span>
+                  <span className={systemCapabilities?.deviceOwnerEnabled ? 'text-emerald-400' : 'text-white/50'}>
+                    {systemCapabilities ? (systemCapabilities.deviceOwnerEnabled ? 'Active' : 'Not provisioned') : 'Checking...'}
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/45">Device Admin and Device Owner are different Android roles. Device Owner is normally provisioned during device setup or with ADB on an eligible device.</p>
+              </div>
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
                 <div className="text-xs uppercase tracking-wider text-[#C5A059]">Transparent Permission Manager</div>
                 <div className="space-y-2 text-xs">

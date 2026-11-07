@@ -72,8 +72,6 @@ public class JarvisSystemControlPlugin extends Plugin {
         out.put("accessibilityEnabled", accessibilityEnabled());
         out.put("notificationListenerEnabled", notificationListenerEnabled());
         out.put("deviceAdminEnabled", dpm != null && dpm.isAdminActive(admin));
-        // Device Admin only grants the declared admin policies; Device Owner is a separate, stronger management role.
-        out.put("deviceOwnerEnabled", dpm != null && dpm.isDeviceOwnerApp(context.getPackageName()));
         out.put("dndAccess", Build.VERSION.SDK_INT < 23 || notifications.isNotificationPolicyAccessGranted());
         out.put("usageAccess", hasUsageAccess());
         out.put("exactAlarmsAllowed", Build.VERSION.SDK_INT < 31 || ((AlarmManager) context.getSystemService(Context.ALARM_SERVICE)).canScheduleExactAlarms());
