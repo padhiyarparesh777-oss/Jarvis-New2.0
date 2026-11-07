@@ -422,7 +422,34 @@ export const memoryRepository = {
         localStorage.setItem(STORAGE_KEYS.ROUTINES, JSON.stringify(INITIAL_ROUTINES));
         return INITIAL_ROUTINES;
       }
-      return JSON.parse(raw);
+      const stored: AutomationRoutine[] = JSON.parse(raw);
+      const migrated = stored.map((routine) => {
+        if (routine.trigger && routine.actions) return routine;
+        if (routine.id === 'routine-work-mode') {
+          return {
+            ...routine,
+            trigger: routine.trigger || { type: 'manual' as const },
+            actions: routine.actions || [
+              { type: 'start_timer' as const, seconds: 1500, label: 'Work Mode Focus Session' },
+              { type: 'set_response_style' as const, style: 'concise' as const },
+            ],
+          };
+        }
+        if (routine.id === 'routine-morning-brief') {
+          return {
+            ...routine,
+            trigger: routine.trigger || { type: 'manual' as const },
+            actions: routine.actions || [
+              { type: 'notify' as const, title: 'JARVIS Morning Briefing', message: 'Your daily briefing is ready. Review your tasks and device status.' },
+            ],
+          };
+        }
+        return { ...routine, trigger: routine.trigger || { type: 'manual' as const }, actions: routine.actions || [] };
+      });
+      if (JSON.stringify(migrated) !== JSON.stringify(stored)) {
+        localStorage.setItem(STORAGE_KEYS.ROUTINES, JSON.stringify(migrated));
+      }
+      return migrated;
     } catch {
       return INITIAL_ROUTINES;
     }
