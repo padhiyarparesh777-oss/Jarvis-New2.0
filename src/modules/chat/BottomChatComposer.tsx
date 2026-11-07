@@ -617,7 +617,7 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
       )}
 
       {/* Persistent Bottom Region: Subtle Captions + Attachment Previews + Chat Composer Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom,1rem))] pt-2 flex flex-col items-center pointer-events-none">
+      <div className="fixed bottom-[88px] left-0 right-0 z-30 px-4 pb-1 pt-2 flex flex-col items-center pointer-events-none">
         {/* Ephemeral Status / Live Voice Caption above Composer */}
         <div className="w-full max-w-2xl flex flex-col items-center mb-2.5">
           {stateLabel && (
