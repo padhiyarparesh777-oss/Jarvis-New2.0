@@ -874,8 +874,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="jarvis-light-ui relative w-full h-full bg-[#FCEFF4] text-slate-900 overflow-hidden select-none">\n      <div className="jarvis-water-ripple z-0" aria-hidden="true" />
-      {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
+    <div className="jarvis-light-ui relative w-full h-full bg-white text-slate-900 overflow-hidden select-none">\n      {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
       <NeuralNetworkCore
         interactionState={interactionState}
         getAudioMetrics={getAudioMetricsCallback}
