@@ -11,12 +11,14 @@ interface PlannerScreenProps {
   onToggleTask: (id: string) => void;
   onDeleteTask: (id: string) => void;
   onRunRoutine: (routine: AutomationRoutine) => void;
+  onToggleRoutine: (id: string) => void;
+  onUpdateRoutine: (id: string, patch: Partial<AutomationRoutine>) => void;
 }
 
 const panel = 'rounded-2xl border border-white/80 bg-white/75 shadow-[0_8px_28px_rgba(45,61,110,0.08)] backdrop-blur-xl';
 
 export const PlannerScreen: React.FC<PlannerScreenProps> = ({
-  tasks, routines, logs, timers, onAddTask, onToggleTask, onDeleteTask, onRunRoutine,
+  tasks, routines, logs, timers, onAddTask, onToggleTask, onDeleteTask, onRunRoutine, onToggleRoutine, onUpdateRoutine,
 }) => {
   const [title, setTitle] = useState('');
   const [dueTime, setDueTime] = useState('Today');
@@ -74,7 +76,35 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
         {routines.length === 0 ? <p className="text-xs text-slate-400">No routines configured.</p> : <div className="space-y-2">
           {routines.map((routine) => <div key={routine.id} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white/80 p-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600"><Zap className="h-4 w-4" /></div>
-            <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-slate-800">{routine.name}</p><p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">{routine.description}</p></div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-slate-800">{routine.name}</p>
+              <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">{routine.description}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <select
+                  aria-label={`${routine.name} trigger`}
+                  value={routine.trigger?.type || 'manual'}
+                  onChange={(event) => {
+                    const type = event.target.value as NonNullable<AutomationRoutine['trigger']>['type'];
+                    const trigger: AutomationRoutine['trigger'] =
+                      type === 'daily_time' ? { type, time: '08:00' } :
+                      type === 'charging' ? { type } :
+                      type === 'battery_below' ? { type, percent: 20 } :
+                      type === 'battery_above' ? { type, percent: 90 } : { type: 'manual' };
+                    onUpdateRoutine(routine.id, { trigger });
+                  }}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600"
+                >
+                  <option value="manual">Manual</option>
+                  <option value="daily_time">Daily time</option>
+                  <option value="charging">When charging</option>
+                  <option value="battery_below">Battery below</option>
+                  <option value="battery_above">Battery above</option>
+                </select>
+                {routine.trigger?.type === 'daily_time' && <input type="time" value={routine.trigger.time} onChange={(event) => onUpdateRoutine(routine.id, { trigger: { type: 'daily_time', time: event.target.value } })} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px]" />}
+                {(routine.trigger?.type === 'battery_below' || routine.trigger?.type === 'battery_above') && <input type="number" min="1" max="99" value={routine.trigger.percent} aria-label="Battery percentage threshold" onChange={(event) => onUpdateRoutine(routine.id, { trigger: { type: routine.trigger!.type as 'battery_below' | 'battery_above', percent: Math.min(99, Math.max(1, Number(event.target.value) || 1)) } })} className="w-14 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px]" />}
+                <button type="button" onClick={() => onToggleRoutine(routine.id)} className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${routine.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{routine.enabled ? 'Enabled' : 'Disabled'}</button>
+              </div>
+            </div>
             <button type="button" onClick={() => onRunRoutine(routine)} disabled={!routine.enabled} className="flex items-center gap-1 rounded-lg bg-[#6578F7]/10 px-3 py-2 text-[10px] font-bold text-[#5267EE] disabled:opacity-40"><Play className="h-3 w-3" /> Run</button>
           </div>)}
         </div>}
