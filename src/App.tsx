@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Settings, ExternalLink, X } from 'lucide-react';
+import { Settings, ExternalLink, X, House, MessageCircle, CalendarDays } from 'lucide-react';
 import {
   ActiveTimerOrAlarm,
   AutomationLog,
@@ -101,6 +101,7 @@ export default function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [selectedTab, setSelectedTab] = useState<'home' | 'chats' | 'planner' | 'settings'>('home');
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [permissions, setPermissions] = useState<PermissionStatusMap>({
     microphone: 'prompt',
@@ -872,7 +873,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-full h-full bg-black text-white overflow-hidden select-none">
+    <div className="relative w-full h-full bg-[#F5F7FB] text-slate-900 overflow-hidden select-none">
       {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
       <NeuralNetworkCore
         interactionState={interactionState}
@@ -893,7 +894,7 @@ export default function App() {
 
       {/* 2. Minimal Top Header: "JARVIS AI" top-left and ONE gold Settings gear top-right */}
       <header className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-6 pt-[max(1.1rem,env(safe-area-inset-top,1.1rem))] pb-3 pointer-events-none">
-        <h1 className="font-display text-sm sm:text-base font-semibold tracking-[0.26em] text-white/95 whitespace-nowrap shrink-0">
+        <h1 className="font-display text-sm sm:text-base font-semibold tracking-[0.22em] text-slate-900 whitespace-nowrap shrink-0">
           JARVIS <span className="text-[#FFC928]">AI</span>
         </h1>
 
@@ -901,7 +902,7 @@ export default function App() {
           type="button"
           onClick={() => setIsSettingsOpen(true)}
           aria-label="Open JARVIS AI Settings"
-          className="pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-[#FFC928] hover:text-[#FFDF70] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FFC928] transition-colors"
+          className="pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-[#6578F7] hover:text-[#4358E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6578F7]/40 transition-colors"
         >
           <Settings className="w-5 h-5" />
         </button>
@@ -910,10 +911,10 @@ export default function App() {
       {/* 3. Pending Android Intent Confirmation Banner (Only when user confirmation is required) */}
       {pendingDeviceAction && (
         <div className="fixed top-20 left-0 right-0 z-30 px-4 flex justify-center pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-[#0A0A0A]/95 border border-[#FFC928]/45 text-xs shadow-2xl">
+          <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white/95 border border-[#6578F7]/20 text-xs shadow-2xl">
             <div className="max-w-xs sm:max-w-sm">
-              <div className="font-semibold text-[#FFC928]">{pendingDeviceAction.title}</div>
-              <div className="text-white/70 truncate">{pendingDeviceAction.detail}</div>
+              <div className="font-semibold text-[#5267EE]">{pendingDeviceAction.title}</div>
+              <div className="text-slate-600 truncate">{pendingDeviceAction.detail}</div>
             </div>
             <button
               type="button"
@@ -923,7 +924,7 @@ export default function App() {
                 const res = await executeNativeDeviceAction(action, settings);
                 setCaptionSubtext(res.message);
               }}
-              className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#FFC928] text-black font-semibold inline-flex items-center gap-1 whitespace-nowrap shrink-0 hover:bg-[#FFDF70] transition-colors"
+              className="px-3 py-1.5 min-h-[36px] rounded-lg bg-[#6578F7] text-white font-semibold inline-flex items-center gap-1 whitespace-nowrap shrink-0 hover:bg-[#FFDF70] transition-colors"
             >
               <span>Confirm</span>
               <ExternalLink className="w-3.5 h-3.5" />
@@ -932,7 +933,7 @@ export default function App() {
               type="button"
               onClick={() => setPendingDeviceAction(null)}
               aria-label="Dismiss intent confirmation"
-              className="p-1.5 text-white/50 hover:text-white"
+              className="p-1.5 text-slate-400 hover:text-slate-700"
             >
               <X className="w-4 h-4" />
             </button>
@@ -968,6 +969,23 @@ export default function App() {
       />
 
       {/* 5. Top-Right Settings Drawer */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-[max(0.65rem,env(safe-area-inset-bottom,0.65rem))] pt-2">
+        <div className="mx-auto flex max-w-md items-center justify-around rounded-[26px] border border-white/85 bg-white/75 px-2 py-2 shadow-[0_12px_40px_rgba(48,62,110,0.14)] backdrop-blur-2xl">
+          <button type="button" onClick={() => { setSelectedTab('home'); setIsChatDrawerOpen(false); setIsSettingsOpen(false); }} aria-label="Home" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'home' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+            <House className="h-5 w-5" /><span>Home</span>
+          </button>
+          <button type="button" onClick={() => { setSelectedTab('chats'); setIsChatDrawerOpen(true); setIsSettingsOpen(false); }} aria-label="Chats" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'chats' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+            <MessageCircle className="h-5 w-5" /><span>Chats</span>
+          </button>
+          <button type="button" onClick={() => { setSelectedTab('planner'); setIsSettingsOpen(true); setIsChatDrawerOpen(false); }} aria-label="Planner and AI controls" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'planner' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+            <CalendarDays className="h-5 w-5" /><span>Planner</span>
+          </button>
+          <button type="button" onClick={() => { setSelectedTab('settings'); setIsSettingsOpen(true); setIsChatDrawerOpen(false); }} aria-label="Settings" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'settings' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+            <Settings className="h-5 w-5" /><span>Settings</span>
+          </button>
+        </div>
+      </nav>
+
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
