@@ -482,6 +482,8 @@ async function startServer() {
     const ai = getGeminiClient();
     res.json({
       configured: true,
+      fccConfigured: Boolean(process.env.FCC_BASE_URL && process.env.FCC_API_KEY),
+      fccModel: process.env.FCC_MODEL || "gemini/models/gemini-3.1-flash-lite",
       provider: ai
         ? "Auto-Hybrid (Google Gemini + Free Unlimited AI)"
         : "Free Unlimited AI Engine (No Key Required)",
@@ -540,6 +542,71 @@ async function startServer() {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
       res.setHeader("X-Accel-Buffering", "no");
+    }
+
+    // FCC Cloud Gateway: credentials remain on the Jarvis backend.
+    if (provider === "fcc") {
+      const fccBaseUrl = (process.env.FCC_BASE_URL || "").trim().replace(/\/+$/, "");
+      const fccApiKey = (process.env.FCC_API_KEY || "").trim();
+      if (!fccBaseUrl || !fccApiKey) {
+        const message = "FCC cloud gateway is not configured. Set FCC_BASE_URL and FCC_API_KEY on the Jarvis backend.";
+        if (stream) { res.write("data: " + JSON.stringify({ type: "error", message }) + "\n\n"); res.end(); }
+        else res.status(503).json({ error: "FCC_NOT_CONFIGURED", message });
+        return;
+      }
+      try {
+        const fccMessages: Record<string, unknown>[] = [{ role: "system", content: systemInstruction }];
+        for (let index = 0; index < messages.length; index++) {
+          const msg = messages[index];
+          const isLastUser = index === messages.length - 1 && msg.role !== "assistant";
+          if (isLastUser && Array.isArray(attachments) && attachments.length > 0) {
+            const parts: Record<string, unknown>[] = [];
+            for (const attachment of attachments) {
+              if (attachment.textContent) parts.push({ type: "text", text: "[Attached File: " + attachment.name + "]\n" + attachment.textContent.slice(0, 30000) });
+              else if (attachment.dataBase64 && attachment.mimeType?.startsWith("image/")) parts.push({ type: "image_url", image_url: { url: "data:" + attachment.mimeType + ";base64," + attachment.dataBase64 } });
+            }
+            parts.push({ type: "text", text: String(msg.content || "Analyze the attached content.") });
+            fccMessages.push({ role: "user", content: parts });
+          } else {
+            fccMessages.push({ role: msg.role === "assistant" ? "assistant" : "user", content: String(msg.content || "") });
+          }
+        }
+        const fccTools = [
+          { type: "function", function: { name: "executeDeviceAction", description: "Perform a user-requested Android device action. Sensitive actions require confirmation.", parameters: { type: "object", properties: { actionType: { type: "string", enum: ["OPEN_APP","SET_ALARM","SET_TIMER","DIAL_NUMBER","SEND_SMS","SEND_WHATSAPP","OPEN_SETTINGS","CHECK_DEVICE_STATUS","NAVIGATE_SCREEN","WEB_SEARCH_INTENT"] }, targetApp: { type: "string" }, alarmHour: { type: "integer" }, alarmMinute: { type: "integer" }, timerSeconds: { type: "integer" }, label: { type: "string" }, phoneNumberOrContact: { type: "string" }, navigationGesture: { type: "string", enum: ["BACK","HOME","SCROLL_DOWN","SCROLL_UP","TAP"] }, requiresConfirmation: { type: "boolean" } }, required: ["actionType"] } } },
+          { type: "function", function: { name: "saveUserMemory", description: "Save a user-approved lasting memory.", parameters: { type: "object", properties: { fact: { type: "string" }, category: { type: "string", enum: ["preference","contact","routine","language"] } }, required: ["fact","category"] } } },
+          { type: "function", function: { name: "managePlannerItem", description: "Create a planner task, reminder, or run a routine.", parameters: { type: "object", properties: { operation: { type: "string", enum: ["ADD_TASK","ADD_REMINDER","RUN_ROUTINE"] }, title: { type: "string" }, dueTime: { type: "string" } }, required: ["operation","title"] } } }
+        ];
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120000);
+        let fccResponse: Response;
+        try {
+          fccResponse = await fetch(fccBaseUrl + "/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + fccApiKey },
+            body: JSON.stringify({ model: process.env.FCC_MODEL || "gemini/models/gemini-3.1-flash-lite", messages: fccMessages, tools: fccTools, tool_choice: "auto", temperature: Number(temperature), stream: false }),
+            signal: controller.signal
+          });
+        } finally { clearTimeout(timeout); }
+        if (!fccResponse.ok) throw new Error("FCC gateway returned HTTP " + fccResponse.status + ": " + (await fccResponse.text()).slice(0, 1200));
+        const fccData = await fccResponse.json() as { choices?: Array<{ message?: { content?: string | Array<{ text?: string }>; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
+        const fccMessage = fccData.choices?.[0]?.message;
+        const fccText = typeof fccMessage?.content === "string" ? fccMessage.content : Array.isArray(fccMessage?.content) ? fccMessage.content.map((part) => part.text || "").join("") : "";
+        const fccFunctionCalls = (fccMessage?.tool_calls || []).flatMap((call) => {
+          try { const name = call.function?.name; return name ? [{ name, args: JSON.parse(call.function?.arguments || "{}") as Record<string, unknown> }] : []; }
+          catch { return []; }
+        });
+        const functionCalls = fccFunctionCalls.length > 0 ? fccFunctionCalls : localToolCalls;
+        if (stream) {
+          for (const call of functionCalls) res.write("data: " + JSON.stringify({ type: "function_call", call }) + "\n\n");
+          if (fccText) res.write("data: " + JSON.stringify({ type: "text", delta: fccText }) + "\n\n");
+          res.write("data: " + JSON.stringify({ type: "done" }) + "\n\n"); res.end();
+        } else res.json({ text: fccText, functionCalls });
+      } catch (fccError) {
+        const message = fccError instanceof Error ? fccError.message : "FCC cloud request failed.";
+        if (stream) { res.write("data: " + JSON.stringify({ type: "error", message }) + "\n\n"); res.end(); }
+        else res.status(502).json({ error: "FCC_GATEWAY_ERROR", message });
+      }
+      return;
     }
 
     const ai = getGeminiClient();
