@@ -44,7 +44,7 @@ import { NeuralNetworkCore } from './modules/neural/NeuralNetworkCore';
 import { BottomChatComposer } from './modules/chat/BottomChatComposer';
 import { SettingsModal } from './modules/settings/SettingsModal';
 import { PlannerScreen } from './modules/PlannerScreen';
-import { executeAutomationActions } from './modules/automation/automationEngine';
+import { executeAutomationActions, markAutomationFired, shouldRunForEvent } from './modules/automation/automationEngine';
 
 function isCurrentlyQuietHours(settings: JarvisSettings): boolean {
   if (!settings.notifications.quietHoursEnabled) return false;
@@ -405,6 +405,39 @@ export default function App() {
     },
     [settings, handleScheduleTimerOrAlarm, scheduleCaptionFadeOut]
   );
+
+  // Event-driven automation: evaluate opted-in time, charging and battery triggers.
+  // Polling is lightweight and only active while JARVIS is open; native background execution
+  // requires the user to enable the foreground service separately.
+  useEffect(() => {
+    let busy = false;
+    const evaluateTriggers = async () => {
+      if (busy || !settings.phoneControl.enabled || isCurrentlyQuietHours(settings)) return;
+      busy = true;
+      try {
+        const device = await JarvisNativeDevice.getDeviceTelemetry();
+        const state = {
+          batteryLevel: Number(device.batteryLevel) || 0,
+          isCharging: Boolean(device.isCharging),
+        };
+        const now = new Date();
+        const due = routines.filter((routine) =>
+          shouldRunForEvent(routine, 'poll', state, now)
+        );
+        for (const routine of due) {
+          markAutomationFired(routine.id, now);
+          await handleRunRoutine(routine);
+        }
+      } catch {
+        // Web preview and devices without native telemetry simply skip device-based triggers.
+      } finally {
+        busy = false;
+      }
+    };
+    const interval = window.setInterval(evaluateTriggers, 30000);
+    evaluateTriggers();
+    return () => window.clearInterval(interval);
+  }, [routines, settings, handleRunRoutine]);
 
   const handleToggleRoutine = useCallback((id: string) => {
     setRoutines((prev) => {
