@@ -295,6 +295,8 @@ export interface PermissionStatusMap {
   wakeLock: 'supported' | 'unsupported';
   backgroundService?: 'running' | 'stopped';
   deviceAdmin?: 'active' | 'inactive';
+  defaultAssistant?: 'active' | 'inactive';
+  notificationListener?: 'enabled' | 'disabled';
 }
 
 export interface ActiveTimerOrAlarm {
