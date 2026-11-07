@@ -61,11 +61,30 @@ public class JarvisAccessibilityService extends AccessibilityService {
     }
 
     /**
+     * Keep JARVIS screen-reading and UI automation away from high-risk apps.
+     * Users can still operate these apps normally; JARVIS simply will not inspect or interact with them.
+     */
+    private boolean isSensitiveForegroundApp() {
+        String pkg = getForegroundPackage().toLowerCase();
+        String[] blocked = {
+            "bank", "banking", "paytm", "phonepe", "gpay", "googlepay",
+            "wallet", "upi", "bhim", "cred", "razorpay", "cashfree",
+            "authenticator", "authy", "otp", "password", "bitwarden",
+            "1password", "lastpass", "keepass"
+        };
+        for (String token : blocked) {
+            if (pkg.contains(token)) return true;
+        }
+        return false;
+    }
+
+    /**
      * Traverses the active window and returns structured JSON representation of visible UI elements,
      * while strictly protecting user privacy (skipping password fields).
      */
     public JSONArray dumpVisibleUiNodes() {
         JSONArray nodesArray = new JSONArray();
+        if (isSensitiveForegroundApp()) return nodesArray;
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return nodesArray;
 
@@ -117,6 +136,7 @@ public class JarvisAccessibilityService extends AccessibilityService {
      * Taps a control matching target text or view ID.
      */
     public boolean performTap(String query) {
+        if (isSensitiveForegroundApp()) return false;
         if (query == null || query.trim().isEmpty()) return false;
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return false;
@@ -206,6 +226,7 @@ public class JarvisAccessibilityService extends AccessibilityService {
      * Enters text into the focused or matching editable field.
      */
     public boolean performInputText(String text, String targetHint) {
+        if (isSensitiveForegroundApp()) return false;
         if (text == null) return false;
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return false;
