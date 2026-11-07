@@ -170,6 +170,11 @@ export const INITIAL_ROUTINES: AutomationRoutine[] = [
       'Verify pending Smart Planner tasks and read briefing',
     ],
     enabled: true,
+    trigger: { type: 'manual' },
+    actions: [
+      { type: 'start_timer', seconds: 1500, label: 'Work Mode Focus Session' },
+      { type: 'set_response_style', style: 'concise' },
+    ],
   },
   {
     id: 'routine-morning-brief',
@@ -181,6 +186,10 @@ export const INITIAL_ROUTINES: AutomationRoutine[] = [
       'Review today’s active reminders and tasks',
     ],
     enabled: true,
+    trigger: { type: 'manual' },
+    actions: [
+      { type: 'notify', title: 'JARVIS Morning Briefing', message: 'Your daily briefing is ready. Review your tasks and device status.' },
+    ],
   },
 ];
 
