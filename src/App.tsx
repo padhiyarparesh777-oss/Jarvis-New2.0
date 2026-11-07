@@ -553,8 +553,10 @@ export default function App() {
 
       // Deterministic local execution keeps essential device controls available offline.
       // Attachments and unknown commands continue through the normal AI path when online.
-      if (cleanInput && isOfflineMode()) {
-        const localResult = processOfflineCommand(cleanInput);
+      const localResult = cleanInput ? processOfflineCommand(cleanInput) : { handled: false, reply: '' };
+      const isRadioControl = localResult.action?.actionType === 'OPEN_WIFI_SETTINGS'
+        || localResult.action?.actionType === 'OPEN_BLUETOOTH_SETTINGS';
+      if (cleanInput && (isOfflineMode() || isRadioControl)) {
         if (localResult.handled) {
           if (localResult.action) {
             await handleExecuteDeviceAction(localResult.action);

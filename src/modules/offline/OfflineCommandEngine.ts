@@ -39,6 +39,34 @@ export function processOfflineCommand(input: string): OfflineCommandResult {
     return { handled: true, reply: `Brightness ${percent}% set kar raha hoon.`, action: { actionType: 'SET_SCREEN_BRIGHTNESS', levelPercent: percent } };
   }
 
+  // Handle explicit radio power commands locally before cloud intent parsing.
+  // Android 10+ restricts silent Wi-Fi toggles for ordinary apps; show the dedicated system controls.
+  const wifiPower = q.match(/\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?wi[\s-]?fi\b|\bwi[\s-]?fi\s+(on|off)\b|\b(?:enable|disable)\s+(?:the\s+)?wi[\s-]?fi\b|wi[\s-]?fi\s+(?:chalu|band)\b|વાઇફાઇ\s+(?:ચાલુ|બંધ)/);
+  if (wifiPower) {
+    const phrase = wifiPower[0];
+    const enabled = /\bon\b|enable|chalu|ચાલુ/.test(phrase);
+    return {
+      handled: true,
+      reply: enabled
+        ? 'Wi-Fi control panel khol raha hoon. Android security ke kaaran switch tumhe panel mein tap karna hoga.'
+        : 'Wi-Fi control panel khol raha hoon. Wi-Fi band karne ke liye panel mein switch tap karo.',
+      action: { actionType: 'OPEN_WIFI_SETTINGS', label: enabled ? 'TURN_ON' : 'TURN_OFF' },
+    };
+  }
+
+  const bluetoothPower = q.match(/\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?bluetooth\b|\bbluetooth\s+(on|off)\b|\b(?:enable|disable)\s+(?:the\s+)?bluetooth\b|bluetooth\s+(?:chalu|band)\b|બ્લૂટૂથ\s+(?:ચાલુ|બંધ)/);
+  if (bluetoothPower) {
+    const phrase = bluetoothPower[0];
+    const enabled = /\bon\b|enable|chalu|ચાલુ/.test(phrase);
+    return {
+      handled: true,
+      reply: enabled
+        ? 'Bluetooth controls khol raha hoon. Android security ke kaaran switch tumhe screen par tap karna hoga.'
+        : 'Bluetooth controls khol raha hoon. Bluetooth band karne ke liye switch tap karo.',
+      action: { actionType: 'OPEN_BLUETOOTH_SETTINGS', label: enabled ? 'TURN_ON' : 'TURN_OFF' },
+    };
+  }
+
   if (/\b(open|show|check)\b.*\b(wifi|wi-fi)\b|वाई.?फाई सेटिंग|વાઇફાઇ સેટિંગ/.test(q)) {
     return { handled: true, reply: 'Wi-Fi settings open kar raha hoon.', action: { actionType: 'OPEN_WIFI_SETTINGS' } };
   }
