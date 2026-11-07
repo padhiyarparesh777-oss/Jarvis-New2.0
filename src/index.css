@@ -19,7 +19,7 @@
     height: 100%;
     margin: 0;
     padding: 0;
-    background-color: #F5F7FB;
+    background-color: #FCEFF4;
     color: #172033;
     font-family: var(--font-sans);
     overflow: hidden;
@@ -93,4 +93,54 @@
 }
 .jarvis-light-ui [class*="hover:bg-[#FFC928]"]:hover {
   background-color: rgba(101, 120, 247, 0.08) !important;
+}
+
+
+/* Soft rose-water glass theme */
+.jarvis-light-ui,
+.jarvis-light-ui body,
+.jarvis-light-ui #root {
+  background:
+    radial-gradient(ellipse at 14% 18%, rgba(255,255,255,.92) 0%, transparent 34%),
+    radial-gradient(ellipse at 88% 22%, rgba(220,239,255,.78) 0%, transparent 38%),
+    radial-gradient(ellipse at 55% 92%, rgba(246,203,222,.78) 0%, transparent 42%),
+    linear-gradient(145deg, #FBEAF1 0%, #F8E5EF 48%, #EAF4FC 100%) !important;
+  color: #24415F;
+}
+.jarvis-light-ui {
+  --jarvis-blue: #258EDB;
+  --jarvis-blue-deep: #176DB8;
+  --jarvis-water: rgba(190, 226, 248, .30);
+  --jarvis-rose: rgba(248, 218, 232, .48);
+}
+.jarvis-light-ui [class*="bg-white"] {
+  background-color: rgba(255,255,255,.62) !important;
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+.jarvis-light-ui [class*="text-[#FFC928]"],
+.jarvis-light-ui [class*="text-[#D99B16]"],
+.jarvis-light-ui [class*="text-amber-"],
+.jarvis-light-ui [class*="text-yellow-"] {
+  color: #258EDB !important;
+}
+.jarvis-light-ui [class*="border-[#FFC928]"],
+.jarvis-light-ui [class*="border-amber-"] {
+  border-color: rgba(37,142,219,.42) !important;
+}
+.jarvis-water-ripple {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: .48;
+  background:
+    radial-gradient(ellipse at 20% 35%, transparent 0 20%, rgba(255,255,255,.38) 20.3% 20.8%, transparent 21.2% 33%, rgba(255,255,255,.22) 33.3% 33.8%, transparent 34.2%),
+    radial-gradient(ellipse at 78% 68%, transparent 0 18%, rgba(151,207,239,.20) 18.3% 18.8%, transparent 19.2% 31%, rgba(255,255,255,.25) 31.3% 31.8%, transparent 32.2%);
+  filter: blur(1px);
+  animation: water-drift 18s ease-in-out infinite alternate;
+}
+@keyframes water-drift {
+  from { transform: translate3d(-1.5%, -1%, 0) scale(1); }
+  to { transform: translate3d(1.5%, 1%, 0) scale(1.035); }
 }
