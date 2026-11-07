@@ -1551,14 +1551,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="space-y-2 text-xs">
                   <div className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
                     <div>
-                      <div className="text-white font-medium">Default Assistant Role</div>
-                      <div className="text-[10px] text-white/50">Allow JARVIS to respond to long-press home or assistant gestures</div>
+                      <div className="text-white font-medium">Default Assistant Role · <span className={permissions.defaultAssistant === 'active' ? 'text-emerald-400' : 'text-amber-300'}>{permissions.defaultAssistant === 'active' ? 'Active' : 'Not selected'}</span></div>
+                      <div className="text-[10px] text-white/50">Allow JARVIS to respond to supported Android assistant gestures.</div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         if (Capacitor.isNativePlatform()) {
-                          JarvisNativeDevice.requestDefaultAssistant();
+                          await JarvisNativeDevice.requestDefaultAssistant();
+                          onRefreshPermissions();
                         }
                       }}
                       className="px-2.5 py-1 rounded border border-[#FFC928]/40 text-[#FFC928] text-[11px]"
@@ -1577,25 +1578,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={async () => {
                         if (Capacitor.isNativePlatform()) {
                           await JarvisNativeDevice.openNotificationListenerSettings();
-                          onRefreshPermissions();
-                        }
-                      }}
-                      className="px-2.5 py-1 rounded border border-[#FFC928]/40 text-[#FFC928] text-[11px]"
-                    >
-                      Configure
-                    </button>
-                  </div>
-
-                  <div className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">Default Assistant Role · <span className={permissions.defaultAssistant === 'active' ? 'text-emerald-400' : 'text-amber-300'}>{permissions.defaultAssistant === 'active' ? 'Active' : 'Not selected'}</span></div>
-                      <div className="text-[10px] text-white/50">Lets Android route supported assistant gestures to JARVIS.</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (Capacitor.isNativePlatform()) {
-                          await JarvisNativeDevice.requestDefaultAssistant();
                           onRefreshPermissions();
                         }
                       }}
