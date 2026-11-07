@@ -19,7 +19,7 @@
     height: 100%;
     margin: 0;
     padding: 0;
-    background-color: #FCEFF4;
+    background-color: #FFFFFF;
     color: #172033;
     font-family: var(--font-sans);
     overflow: hidden;
@@ -96,15 +96,11 @@
 }
 
 
-/* Soft rose-water glass theme */
+/* Clean white glass theme */
 .jarvis-light-ui,
 .jarvis-light-ui body,
 .jarvis-light-ui #root {
-  background:
-    radial-gradient(ellipse at 14% 18%, rgba(255,255,255,.92) 0%, transparent 34%),
-    radial-gradient(ellipse at 88% 22%, rgba(220,239,255,.78) 0%, transparent 38%),
-    radial-gradient(ellipse at 55% 92%, rgba(246,203,222,.78) 0%, transparent 42%),
-    linear-gradient(145deg, #FBEAF1 0%, #F8E5EF 48%, #EAF4FC 100%) !important;
+  background: #FFFFFF !important;
   color: #24415F;
 }
 .jarvis-light-ui {
