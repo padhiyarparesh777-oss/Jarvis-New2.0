@@ -10,3 +10,34 @@ services:
         value: production
       - key: GEMINI_API_KEY
         sync: false
+      - key: FCC_BASE_URL
+        sync: false
+      - key: FCC_API_KEY
+        sync: false
+      - key: FCC_MODEL
+        value: gemini/models/gemini-3.1-flash-lite
+
+  - type: web
+    name: jarvis-fcc-gateway
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./fcc-cloud/Dockerfile
+    dockerContext: .
+    disk:
+      name: fcc-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: FCC_OPEN_BROWSER
+        value: "false"
+      - key: PROXY_AUTH_ENABLED
+        value: "true"
+      - key: ANTHROPIC_AUTH_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MODEL
+        value: gemini/models/gemini-3.1-flash-lite
