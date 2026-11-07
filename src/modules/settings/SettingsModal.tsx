@@ -1569,6 +1569,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
                     <div>
+                      <div className="text-white font-medium">Notification Access · <span className={permissions.notificationListener === 'enabled' ? 'text-emerald-400' : 'text-amber-300'}>{permissions.notificationListener === 'enabled' ? 'Enabled' : 'Not enabled'}</span></div>
+                      <div className="text-[10px] text-white/50">Read supported notifications for summaries. Sensitive finance and authenticator apps are excluded.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (Capacitor.isNativePlatform()) {
+                          await JarvisNativeDevice.openNotificationListenerSettings();
+                          onRefreshPermissions();
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded border border-[#FFC928]/40 text-[#FFC928] text-[11px]"
+                    >
+                      Configure
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
+                    <div>
+                      <div className="text-white font-medium">Default Assistant Role · <span className={permissions.defaultAssistant === 'active' ? 'text-emerald-400' : 'text-amber-300'}>{permissions.defaultAssistant === 'active' ? 'Active' : 'Not selected'}</span></div>
+                      <div className="text-[10px] text-white/50">Lets Android route supported assistant gestures to JARVIS.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (Capacitor.isNativePlatform()) {
+                          await JarvisNativeDevice.requestDefaultAssistant();
+                          onRefreshPermissions();
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded border border-[#FFC928]/40 text-[#FFC928] text-[11px]"
+                    >
+                      Configure
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 rounded bg-black border border-white/10 flex items-center justify-between">
+                    <div>
                       <div className="text-white font-medium">Device Administrator</div>
                       <div className="text-[10px] text-white/50">Permits JARVIS to lock phone screen upon user voice command</div>
                     </div>
