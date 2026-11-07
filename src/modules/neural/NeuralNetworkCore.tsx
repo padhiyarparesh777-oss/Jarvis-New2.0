@@ -168,7 +168,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
 
     // 1. Scene, Camera, Renderer setup on pure #000000 canvas
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
+    scene.background = new THREE.Color(0xf5f7fb);
     scene.fog = new THREE.FogExp2(0x000000, 0.04);
 
     const width = container.clientWidth || window.innerWidth;
@@ -192,7 +192,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
         : Math.min(window.devicePixelRatio || 1, animationQuality === 'ultra' ? 2 : 1.5)
     );
     renderer.setSize(width, height);
-    renderer.setClearColor(0x000000, 1);
+    renderer.setClearColor(0xf5f7fb, 1);
 
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
