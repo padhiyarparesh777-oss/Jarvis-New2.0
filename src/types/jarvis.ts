@@ -90,6 +90,18 @@ export interface AutomationRoutine {
   steps: string[];
   enabled: boolean;
   lastRunAt?: number;
+  trigger?:
+    | { type: 'manual' }
+    | { type: 'daily_time'; time: string }
+    | { type: 'charging' }
+    | { type: 'battery_below'; percent: number }
+    | { type: 'battery_above'; percent: number };
+  actions?: Array<
+    | { type: 'notify'; title: string; message: string }
+    | { type: 'start_timer'; seconds: number; label: string }
+    | { type: 'open_app'; app: string }
+    | { type: 'set_response_style'; style: ResponseStyle }
+  >;
 }
 
 export interface AutomationLog {
