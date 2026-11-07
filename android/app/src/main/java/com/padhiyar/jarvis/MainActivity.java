@@ -1,6 +1,9 @@
 package com.padhiyar.jarvis;
 
 import android.os.Bundle;
+import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
@@ -13,6 +16,10 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(JarvisPermissionsPlugin.class);
         registerPlugin(JarvisDevicePlugin.class);
         super.onCreate(savedInstanceState);
+
+        if (Intent.ACTION_ASSIST.equals(getIntent() != null ? getIntent().getAction() : null)) {
+            dispatchAssistantInvocation();
+        }
 
         // Configure WebView settings for audio responsiveness and media permissions
         if (getBridge() != null && getBridge().getWebView() != null) {
@@ -36,5 +43,22 @@ public class MainActivity extends BridgeActivity {
                 }
             }
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && Intent.ACTION_ASSIST.equals(intent.getAction())) {
+            dispatchAssistantInvocation();
+        }
+    }
+
+    private void dispatchAssistantInvocation() {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().triggerWindowJSEvent("jarvis:assist");
+            }
+        }, 900);
     }
 }
