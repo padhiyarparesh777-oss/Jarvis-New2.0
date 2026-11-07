@@ -192,6 +192,8 @@ export async function checkPermissionsStatus(
   let accessibilityAuthorized: PermissionStatusMap['accessibilityService'] = 'unauthorized';
   let backgroundService: PermissionStatusMap['backgroundService'] = 'stopped';
   let deviceAdmin: PermissionStatusMap['deviceAdmin'] = 'inactive';
+  let defaultAssistant: PermissionStatusMap['defaultAssistant'] = 'inactive';
+  let notificationListener: PermissionStatusMap['notificationListener'] = 'disabled';
 
   if (Capacitor.isNativePlatform()) {
     try {
@@ -222,6 +224,20 @@ export async function checkPermissionsStatus(
     try {
       const da = await JarvisNativeDevice.isDeviceAdminActive();
       deviceAdmin = da.active ? 'active' : 'inactive';
+    } catch {
+      // Ignore
+    }
+
+    try {
+      const assistant = await JarvisNativeDevice.isDefaultAssistant();
+      defaultAssistant = assistant.isDefault ? 'active' : 'inactive';
+    } catch {
+      // Ignore
+    }
+
+    try {
+      const listener = await JarvisNativeDevice.isNotificationListenerEnabled();
+      notificationListener = listener.enabled && listener.connected ? 'enabled' : 'disabled';
     } catch {
       // Ignore
     }
@@ -268,6 +284,8 @@ export async function checkPermissionsStatus(
     wakeLock,
     backgroundService,
     deviceAdmin,
+    defaultAssistant,
+    notificationListener,
   };
 }
 
