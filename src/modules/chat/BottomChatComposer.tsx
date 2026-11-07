@@ -406,7 +406,7 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
           role="region"
           aria-label="Conversation History"
         >
-          <div className="flex-1 rounded-2xl bg-[#070707]/95 border border-[#FFC928]/25 flex flex-col overflow-hidden shadow-2xl">
+          <div className="flex-1 rounded-2xl bg-white/90 border border-white/90 flex flex-col overflow-hidden shadow-[0_18px_55px_rgba(35,48,90,0.16)] backdrop-blur-2xl">
             {/* Thread Header & Search Bar */}
             <div className="px-4 py-3 border-b border-[#FFC928]/15 flex flex-wrap items-center justify-between gap-2 bg-[#0A0A0A]">
               <div className="flex items-center gap-2 overflow-x-auto max-w-full">
@@ -621,7 +621,7 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
         {/* Ephemeral Status / Live Voice Caption above Composer */}
         <div className="w-full max-w-2xl flex flex-col items-center mb-2.5">
           {stateLabel && (
-            <div className="flex items-center gap-2 mb-1 text-xs text-[#FFC928] tracking-wider">
+            <div className="flex items-center gap-2 mb-1 text-xs text-[#5267EE] tracking-wider">
               <span>{stateLabel}</span>
               {(interactionState === 'speaking' ||
                 interactionState === 'listening' ||
@@ -644,7 +644,7 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
               type="button"
               onClick={() => onToggleChatDrawer(true)}
               title="Tap to open full conversation view"
-              className="pointer-events-auto max-w-xl text-center text-xs sm:text-sm font-normal text-white/90 leading-relaxed tracking-wide line-clamp-3 hover:text-white transition-colors"
+              className="pointer-events-auto max-w-xl text-center text-xs sm:text-sm font-normal text-slate-700 leading-relaxed tracking-wide line-clamp-3 hover:text-slate-900 transition-colors"
             >
               {liveCaption}
             </button>
@@ -751,7 +751,7 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
           {/* Persistent Bottom Chat Bar: Circular + button left, Text input center, Send button right */}
           <form
             onSubmit={handleSubmit}
-            className="flex items-center gap-2.5 w-full rounded-full bg-[#090909]/95 border border-[#FFC928]/30 px-2 py-1.5 shadow-[0_0_25px_rgba(0,0,0,0.9)] focus-within:border-[#FFC928]/70 transition-colors"
+            className="flex items-center gap-2.5 w-full rounded-full bg-white/90 border border-slate-200 px-2 py-1.5 shadow-[0_8px_30px_rgba(35,48,90,0.12)] focus-within:border-[#6578F7]/60 transition-colors"
           >
             {/* Circular + Button on the Left */}
             <button
@@ -785,7 +785,7 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
               }}
               placeholder="Type a message or give a command..."
               aria-label="Type a message or give a command"
-              className="flex-1 min-w-0 bg-transparent px-2 py-2 text-xs sm:text-sm text-white placeholder:text-white/40 focus:outline-none"
+              className="flex-1 min-w-0 bg-transparent px-2 py-2 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
             />
 
             {/* Subtle Conversation History Toggle if thread has messages */}
