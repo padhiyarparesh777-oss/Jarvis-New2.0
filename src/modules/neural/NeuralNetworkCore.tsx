@@ -168,8 +168,8 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
 
     // 1. Scene, Camera, Renderer setup on pure #000000 canvas
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf5f7fb);
-    scene.fog = new THREE.FogExp2(0x000000, 0.04);
+    scene.background = new THREE.Color(0xfbeaf1);
+    scene.fog = new THREE.FogExp2(0xf4e6ee, 0.04);
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
@@ -192,7 +192,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
         : Math.min(window.devicePixelRatio || 1, animationQuality === 'ultra' ? 2 : 1.5)
     );
     renderer.setSize(width, height);
-    renderer.setClearColor(0xf5f7fb, 1);
+    renderer.setClearColor(0xfbeaf1, 1);
 
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
@@ -404,7 +404,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
           uTime: { value: 0 },
           uBaseOpacity: { value: cfg.opacity },
           uGoldIntensity: { value: 1.0 },
-          uColor: { value: new THREE.Color('#FFC928') },
+          uColor: { value: new THREE.Color('#258EDB') },
         },
         vertexShader: `
           attribute float aAngle;
@@ -479,7 +479,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
       uniforms: {
         uPixelRatio: { value: renderer.getPixelRatio() },
         uIntensity: { value: 1.0 },
-        uTintColor: { value: new THREE.Color('#D99B16') },
+        uTintColor: { value: new THREE.Color('#4AADEB') },
       },
       vertexShader: `
         attribute float aScale;
@@ -578,10 +578,10 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
     const nodeBrightness = new Float32Array(nodeCount);
     const nodeColors = new Float32Array(nodeCount * 3);
 
-    const colorGold = new THREE.Color('#FFC928');
-    const colorAmber = new THREE.Color('#F59E0B');
-    const colorChampagne = new THREE.Color('#FFE89E');
-    const colorErrorTint = new THREE.Color('#FF6B35');
+    const colorGold = new THREE.Color('#258EDB');
+    const colorAmber = new THREE.Color('#176DB8');
+    const colorChampagne = new THREE.Color('#B9E7FF');
+    const colorErrorTint = new THREE.Color('#65BDF0');
 
     for (let i = 0; i < nodeCount; i++) {
       const n = nodes[i];
@@ -699,7 +699,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
       uniforms: {
         uPixelRatio: { value: renderer.getPixelRatio() },
         uGoldIntensity: { value: 1.0 },
-        uPulseColor: { value: new THREE.Color('#FFF0A8') },
+        uPulseColor: { value: new THREE.Color('#D9F2FF') },
       },
       vertexShader: `
         attribute float aSize;
@@ -1430,7 +1430,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onKeyDown={handleKeyDown}
-      className="fixed inset-0 w-full h-full bg-black cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FFC928]/40"
+      className="fixed inset-0 w-full h-full bg-black cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#258EDB]/40"
     />
   );
 };
