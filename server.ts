@@ -546,7 +546,7 @@ async function startServer() {
 
     // FCC Cloud Gateway: credentials remain on the Jarvis backend.
     if (provider === "fcc") {
-      const fccBaseUrl = (process.env.FCC_BASE_URL || "").trim().replace(/\/+$/, "");
+      const fccBaseUrl = (process.env.FCC_BASE_URL || "").trim().replace(/\/+$/, "").replace(/\/v1$/i, "");
       const fccApiKey = (process.env.FCC_API_KEY || "").trim();
       if (!fccBaseUrl || !fccApiKey) {
         const message = "FCC cloud gateway is not configured. Set FCC_BASE_URL and FCC_API_KEY on the Jarvis backend.";
