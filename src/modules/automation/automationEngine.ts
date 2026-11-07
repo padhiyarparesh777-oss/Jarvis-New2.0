@@ -50,7 +50,7 @@ export function shouldRunForEvent(
       now.getMinutes() === Number(trigger.time.slice(3, 5)) &&
       lastFired.get(routine.id) !== minuteKey;
   }
-  if (trigger.type === 'charging') return state.isCharging && lastFired.get(routine.id) !== dateKey;
+  if (trigger.type === 'charging') return state.isCharging && !lastFired.get(routine.id)?.startsWith(dateKey);
   if (trigger.type === 'battery_below') return state.batteryLevel < trigger.percent && lastFired.get(routine.id) !== dateKey;
   if (trigger.type === 'battery_above') return state.batteryLevel > trigger.percent && lastFired.get(routine.id) !== dateKey;
   return false;
