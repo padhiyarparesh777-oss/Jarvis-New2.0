@@ -43,6 +43,7 @@ import { personaEngine } from './modules/persona/PersonaEngine';
 import { NeuralNetworkCore } from './modules/neural/NeuralNetworkCore';
 import { BottomChatComposer } from './modules/chat/BottomChatComposer';
 import { SettingsModal } from './modules/settings/SettingsModal';
+import { PlannerScreen } from './modules/PlannerScreen';
 
 function isCurrentlyQuietHours(settings: JarvisSettings): boolean {
   if (!settings.notifications.quietHoursEnabled) return false;
@@ -977,7 +978,7 @@ export default function App() {
           <button type="button" onClick={() => { setSelectedTab('chats'); setIsChatDrawerOpen(true); setIsSettingsOpen(false); }} aria-label="Chats" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'chats' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
             <MessageCircle className="h-5 w-5" /><span>Chats</span>
           </button>
-          <button type="button" onClick={() => { setSelectedTab('planner'); setIsSettingsOpen(true); setIsChatDrawerOpen(false); }} aria-label="Planner and AI controls" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'planner' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+          <button type="button" onClick={() => { setSelectedTab('planner'); setIsSettingsOpen(false); setIsChatDrawerOpen(false); }} aria-label="Planner and AI controls" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'planner' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
             <CalendarDays className="h-5 w-5" /><span>Planner</span>
           </button>
           <button type="button" onClick={() => { setSelectedTab('settings'); setIsSettingsOpen(true); setIsChatDrawerOpen(false); }} aria-label="Settings" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'settings' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
@@ -985,6 +986,19 @@ export default function App() {
           </button>
         </div>
       </nav>
+
+      {selectedTab === 'planner' && !isSettingsOpen && (
+        <PlannerScreen
+          tasks={plannerTasks}
+          routines={routines}
+          logs={automationLogs}
+          timers={activeTimers}
+          onAddTask={handleAddPlannerTask}
+          onToggleTask={handleTogglePlannerTask}
+          onDeleteTask={handleDeletePlannerTask}
+          onRunRoutine={handleRunRoutine}
+        />
+      )}
 
       <SettingsModal
         isOpen={isSettingsOpen}
