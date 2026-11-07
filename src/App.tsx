@@ -739,6 +739,15 @@ export default function App() {
     triggerTransientErrorState,
   ]);
 
+  // Android's default-assistant gesture enters the same guarded voice pipeline as the orb.
+  useEffect(() => {
+    const onAssistantInvocation = () => {
+      if (interactionState === 'idle') handleCoreTap();
+    };
+    window.addEventListener('jarvis:assist', onAssistantInvocation);
+    return () => window.removeEventListener('jarvis:assist', onAssistantInvocation);
+  }, [handleCoreTap, interactionState]);
+
   const handleCoreHoldStart = useCallback(() => {
     if (interactionState !== 'listening') {
       beginVoiceListening();
