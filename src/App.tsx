@@ -44,6 +44,7 @@ import { NeuralNetworkCore } from './modules/neural/NeuralNetworkCore';
 import { BottomChatComposer } from './modules/chat/BottomChatComposer';
 import { SettingsModal } from './modules/settings/SettingsModal';
 import { PlannerScreen } from './modules/PlannerScreen';
+import { executeAutomationActions } from './modules/automation/automationEngine';
 
 function isCurrentlyQuietHours(settings: JarvisSettings): boolean {
   if (!settings.notifications.quietHoursEnabled) return false;
@@ -329,58 +330,78 @@ export default function App() {
   }, []);
 
   const handleRunRoutine = useCallback(
-    (routine: AutomationRoutine) => {
-      if (isCurrentlyQuietHours(settings)) {
-        const skippedLog: AutomationLog = {
-          id: `alog-${Date.now()}`,
+    async (routine: AutomationRoutine) => {
+      const writeLog = (status: AutomationLog['status'], detail: string) => {
+        const entry: AutomationLog = {
+          id: `alog-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
           routineName: routine.name,
-          status: 'skipped_quiet_hours',
-          detail: 'Routine suppressed due to active Quiet Hours policy.',
+          status,
+          detail,
           timestamp: Date.now(),
         };
         setAutomationLogs((prev) => {
-          const next = [skippedLog, ...prev.slice(0, 49)];
+          const next = [entry, ...prev.slice(0, 49)];
           memoryRepository.saveAutomationLogs(next);
           return next;
         });
+      };
+
+      if (!routine.enabled) return;
+      if (isCurrentlyQuietHours(settings)) {
+        writeLog('skipped_quiet_hours', 'Routine suppressed due to active Quiet Hours policy.');
         setCaptionSubtext(`${routine.name} paused during Quiet Hours.`);
         return;
       }
 
-      if (routine.name.toLowerCase().includes('work')) {
-        handleScheduleTimerOrAlarm('timer', 'Work Mode Focus Session', 1500);
-        setSettings((prev) => {
-          const updated: JarvisSettings = {
-            ...prev,
-            aiBrain: { ...prev.aiBrain, responseStyle: 'concise', personality: 'tactical' },
-          };
-          memoryRepository.saveSettings(updated);
-          return updated;
+      try {
+        const results = await executeAutomationActions(routine, {
+          notify: async (title, message) => {
+            if (settings.notifications.remindersEnabled) {
+              await JarvisNativeDevice.showNotification({ title, body: message });
+            }
+          },
+          startTimer: (seconds, label) => handleScheduleTimerOrAlarm('timer', label, seconds),
+          openApp: async (app) => {
+            const action = await processDeviceAction(
+              { actionType: 'OPEN_APP', targetApp: app },
+              settings,
+              handleScheduleTimerOrAlarm
+            );
+            const dispatched = await executeNativeDeviceAction(action, settings);
+            if (!dispatched.success) throw new Error(dispatched.message);
+          },
+          setResponseStyle: (style) => {
+            setSettings((prev) => {
+              const updated: JarvisSettings = {
+                ...prev,
+                aiBrain: { ...prev.aiBrain, responseStyle: style },
+              };
+              memoryRepository.saveSettings(updated);
+              return updated;
+            });
+          },
         });
-      }
 
-      const logEntry: AutomationLog = {
-        id: `alog-${Date.now()}`,
-        routineName: routine.name,
-        status: 'completed',
-        detail: `Executed ${routine.steps.length} workflow steps.`,
-        timestamp: Date.now(),
-      };
-      setAutomationLogs((prev) => {
-        const next = [logEntry, ...prev.slice(0, 49)];
-        memoryRepository.saveAutomationLogs(next);
-        return next;
-      });
-      setRoutines((prev) => {
-        const next = prev.map((r) =>
-          r.id === routine.id ? { ...r, lastRunAt: Date.now() } : r
-        );
-        memoryRepository.saveRoutines(next);
-        return next;
-      });
-      setLiveCaption(`${routine.name} activated.`);
-      setCaptionSubtext(routine.steps.join(' · '));
-      scheduleCaptionFadeOut(6000);
+        // Legacy routines without structured actions still retain their visible checklist behavior.
+        const detail = results.length > 0
+          ? results.join(' · ')
+          : `Routine completed. ${routine.steps.length} configured steps: ${routine.steps.join(' · ')}`;
+        writeLog('completed', detail);
+        setRoutines((prev) => {
+          const next = prev.map((item) =>
+            item.id === routine.id ? { ...item, lastRunAt: Date.now() } : item
+          );
+          memoryRepository.saveRoutines(next);
+          return next;
+        });
+        setLiveCaption(`${routine.name} activated.`);
+        setCaptionSubtext(detail);
+        scheduleCaptionFadeOut(6000);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        writeLog('failed', message);
+        setCaptionSubtext(`${routine.name} failed: ${message}`);
+      }
     },
     [settings, handleScheduleTimerOrAlarm, scheduleCaptionFadeOut]
   );
