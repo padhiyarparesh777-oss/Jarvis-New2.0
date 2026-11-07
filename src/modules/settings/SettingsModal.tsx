@@ -558,7 +558,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <label className="block text-xs text-[#C5A059]">Primary Gemini Model</label>
+                  <label className="block text-xs text-[#C5A059]">{settings.aiBrain.provider === 'fcc' ? 'FCC model is configured on the cloud service' : 'Primary Gemini Model'}</label>
                   <select
                     value={settings.aiBrain.model}
                     onChange={(e) => updateBrain({ model: e.target.value as JarvisSettings['aiBrain']['model'] })}
