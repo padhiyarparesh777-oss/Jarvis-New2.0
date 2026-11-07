@@ -447,6 +447,14 @@ export default function App() {
     });
   }, []);
 
+  const handleUpdateRoutine = useCallback((id: string, patch: Partial<AutomationRoutine>) => {
+    setRoutines((prev) => {
+      const next = prev.map((routine) => routine.id === id ? { ...routine, ...patch } : routine);
+      memoryRepository.saveRoutines(next);
+      return next;
+    });
+  }, []);
+
   const handlePlannerToolAction = useCallback(
     (action: PlannerToolAction) => {
       if (action.operation === 'RUN_ROUTINE') {
@@ -1059,6 +1067,8 @@ export default function App() {
           onToggleTask={handleTogglePlannerTask}
           onDeleteTask={handleDeletePlannerTask}
           onRunRoutine={handleRunRoutine}
+          onToggleRoutine={handleToggleRoutine}
+          onUpdateRoutine={handleUpdateRoutine}
         />
       )}
 
