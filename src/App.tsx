@@ -873,7 +873,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-full h-full bg-[#F5F7FB] text-slate-900 overflow-hidden select-none">
+    <div className="jarvis-light-ui relative w-full h-full bg-[#F5F7FB] text-slate-900 overflow-hidden select-none">
       {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
       <NeuralNetworkCore
         interactionState={interactionState}
