@@ -765,9 +765,9 @@ export async function processDeviceAction(
     return {
       id,
       request,
-      status: 'awaiting_confirmation',
-      title: `Place Phone Call: ${target || 'Dialer'}`,
-      detail: `Placing a call requires explicit confirmation. Recipient: ${target || 'Phone Dialer'}. Confirm to place call.`,
+      status: 'intent_dispatched',
+      title: `Opening Phone Dialer: ${target || 'Dialer'}`,
+      detail: `Opened the Android dialer with ${target || 'the requested number'} ready. Tap Call in the dialer to place the call.`,
       androidIntentUri: telUri,
       timestamp,
     };
