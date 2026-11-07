@@ -874,7 +874,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="jarvis-light-ui relative w-full h-full bg-[#F5F7FB] text-slate-900 overflow-hidden select-none">
+    <div className="jarvis-light-ui relative w-full h-full bg-[#FCEFF4] text-slate-900 overflow-hidden select-none">\n      <div className="jarvis-water-ripple z-0" aria-hidden="true" />
       {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
       <NeuralNetworkCore
         interactionState={interactionState}
@@ -896,7 +896,7 @@ export default function App() {
       {/* 2. Minimal Top Header: "JARVIS AI" top-left and ONE gold Settings gear top-right */}
       <header className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-6 pt-[max(1.1rem,env(safe-area-inset-top,1.1rem))] pb-3 pointer-events-none">
         <h1 className="font-display text-sm sm:text-base font-semibold tracking-[0.22em] text-slate-900 whitespace-nowrap shrink-0">
-          JARVIS <span className="text-[#FFC928]">AI</span>
+          JARVIS <span className="text-[#258EDB]">AI</span>
         </h1>
 
         <button
