@@ -197,7 +197,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
-    // 2. Faceless Glowing Golden AI Orb & Neural Network Nodes
+    // 2. Faceless Blue-Pink Waterglass AI Orb & Neural Network Nodes
     // Uses organic 3D spherical-shell & inner-filament distribution (NO human face, NO robot face, NO character)
     const nodes: NeuronNode[] = [];
     for (let i = 0; i < nodeCount; i++) {
@@ -361,7 +361,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
       }
     }
 
-    // 4. Holographic Golden Energy Rings around the AI Orb (3 Gyroscopic Shader Rings)
+    // 4. Holographic Blue-Pink Energy Rings around the AI Orb (3 Gyroscopic Shader Rings)
     const ringsGroup = new THREE.Group();
     scene.add(ringsGroup);
 
@@ -426,7 +426,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
             float arc1 = pow(0.5 + 0.5 * sin(vAngle * 2.0 - uTime * 2.2), 4.0);
             float arc2 = pow(0.5 + 0.5 * cos(vAngle * 3.0 + uTime * 1.5), 6.0);
             float alpha = uBaseOpacity * (0.22 + 0.78 * max(arc1, arc2)) * uGoldIntensity;
-            vec3 col = mix(uColor, vec3(1.0, 0.96, 0.82), arc1 * 0.55);
+            vec3 col = mix(uColor, vec3(0.88, 0.76, 0.94), arc1 * 0.48);
             gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.88));
           }
         `,
@@ -438,7 +438,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
       ringMeshes.push({ line: loop, mat: rMat, cfg });
     }
 
-    // 5. Volumetric Holographic Golden Glow inside the Orb
+    // 5. Volumetric Holographic Blue Glow inside the Orb
     const volumetricCount = 8;
     const volPositions = new Float32Array(volumetricCount * 3);
     const volBasePositions = new Float32Array(volumetricCount * 3);
@@ -572,7 +572,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
     const filamentLines = new THREE.LineSegments(lineGeo, lineMat);
     scene.add(filamentLines);
 
-    // 7. Glowing Golden Nodes (`THREE.Points`)
+    // 7. Glowing Blue-Pink Nodes (`THREE.Points`)
     const nodePositions = new Float32Array(nodeCount * 3);
     const nodeSizes = new Float32Array(nodeCount);
     const nodeBrightness = new Float32Array(nodeCount);
@@ -654,7 +654,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
           float halo = pow(max(0.0, 1.0 - d), 2.4) * 0.58;
           float intensity = (core + halo) * vBrightness * vDepthFade * uGoldIntensity;
 
-          vec3 hotCoreColor = mix(vColor, vec3(1.0, 0.97, 0.86), core * 0.72);
+          vec3 hotCoreColor = mix(vColor, vec3(0.82, 0.88, 1.0), core * 0.58);
           gl_FragColor = vec4(hotCoreColor, clamp(intensity, 0.0, 0.98));
         }
       `,
@@ -733,7 +733,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
     const pulsePoints = new THREE.Points(pulseGeo, pulseMat);
     scene.add(pulsePoints);
 
-    // 9. Suspended Golden Holographic Dust Particles
+    // 9. Suspended Blue-Pink Holographic Dust Particles
     const dustPositions = new Float32Array(dustCount * 3);
     const dustAlphas = new Float32Array(dustCount);
     for (let i = 0; i < dustCount; i++) {
@@ -777,7 +777,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
           float d = length(gl_PointCoord - vec2(0.5)) * 2.0;
           if (d > 1.0) discard;
           float glow = pow(1.0 - d, 2.0);
-          gl_FragColor = vec4(1.0, 0.79, 0.16, glow * vAlpha * uGoldIntensity);
+          gl_FragColor = vec4(0.82, 0.66, 0.91, glow * vAlpha * uGoldIntensity);
         }
       `,
     });
@@ -1275,13 +1275,10 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
           conn.archDirZ * localExpand;
 
         const energyMix = Math.min(1, conn.signalBoost + endpointEnergy + localWordGlow * 0.85);
-        const r = 1.0;
-        const g = THREE.MathUtils.lerp(
-          THREE.MathUtils.lerp(0.76, 0.42, smoothErrorBlend),
-          0.94,
-          energyMix
-        );
-        const b = THREE.MathUtils.lerp(0.16, 0.64, energyMix);
+        const bluePinkMix = THREE.MathUtils.smoothstep(energyMix, 0.12, 0.88);
+        const r = THREE.MathUtils.lerp(0.16, 0.91, bluePinkMix);
+        const g = THREE.MathUtils.lerp(0.55, 0.69, bluePinkMix);
+        const b = THREE.MathUtils.lerp(0.88, 0.91, bluePinkMix);
 
         linePositions[vCursor * 3] = nA.curX;
         linePositions[vCursor * 3 + 1] = nA.curY;
