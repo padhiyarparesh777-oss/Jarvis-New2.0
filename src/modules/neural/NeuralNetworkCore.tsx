@@ -168,8 +168,8 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
 
     // 1. Scene, Camera, Renderer setup on pure #000000 canvas
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xfbeaf1);
-    scene.fog = new THREE.FogExp2(0xf4e6ee, 0.04);
+    scene.background = new THREE.Color(0xffffff);
+    scene.fog = new THREE.FogExp2(0xffffff, 0.04);
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
@@ -192,7 +192,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
         : Math.min(window.devicePixelRatio || 1, animationQuality === 'ultra' ? 2 : 1.5)
     );
     renderer.setSize(width, height);
-    renderer.setClearColor(0xfbeaf1, 1);
+    renderer.setClearColor(0xffffff, 1);
 
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
@@ -426,7 +426,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
             float arc1 = pow(0.5 + 0.5 * sin(vAngle * 2.0 - uTime * 2.2), 4.0);
             float arc2 = pow(0.5 + 0.5 * cos(vAngle * 3.0 + uTime * 1.5), 6.0);
             float alpha = uBaseOpacity * (0.22 + 0.78 * max(arc1, arc2)) * uGoldIntensity;
-            vec3 col = mix(uColor, vec3(0.88, 0.76, 0.94), arc1 * 0.48);
+            vec3 col = mix(uColor, vec3(0.96, 0.70, 0.82), arc1 * 0.48);
             gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.88));
           }
         `,
@@ -579,9 +579,9 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
     const nodeColors = new Float32Array(nodeCount * 3);
 
     const colorGold = new THREE.Color('#258EDB');
-    const colorAmber = new THREE.Color('#176DB8');
-    const colorChampagne = new THREE.Color('#B9E7FF');
-    const colorErrorTint = new THREE.Color('#65BDF0');
+    const colorAmber = new THREE.Color('#EFAFCB');
+    const colorChampagne = new THREE.Color('#F6C9DC');
+    const colorErrorTint = new THREE.Color('#E9A5C5');
 
     for (let i = 0; i < nodeCount; i++) {
       const n = nodes[i];
@@ -1276,9 +1276,9 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
 
         const energyMix = Math.min(1, conn.signalBoost + endpointEnergy + localWordGlow * 0.85);
         const bluePinkMix = THREE.MathUtils.smoothstep(energyMix, 0.12, 0.88);
-        const r = THREE.MathUtils.lerp(0.16, 0.91, bluePinkMix);
-        const g = THREE.MathUtils.lerp(0.55, 0.69, bluePinkMix);
-        const b = THREE.MathUtils.lerp(0.88, 0.91, bluePinkMix);
+        const r = THREE.MathUtils.lerp(0.16, 0.96, bluePinkMix);
+        const g = THREE.MathUtils.lerp(0.55, 0.64, bluePinkMix);
+        const b = THREE.MathUtils.lerp(0.88, 0.82, bluePinkMix);
 
         linePositions[vCursor * 3] = nA.curX;
         linePositions[vCursor * 3 + 1] = nA.curY;
