@@ -423,19 +423,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-end bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/15 backdrop-blur-xl"
       role="dialog"
       aria-modal="true"
       aria-label="JARVIS AI Settings"
     >
-      <div className="relative w-full max-w-2xl h-full bg-[#050505] border-l border-[#FFC928]/25 flex flex-col text-white overflow-hidden">
+      <div className="relative w-full max-w-2xl h-full bg-white/90 border-l border-white/80 flex flex-col text-slate-800 shadow-2xl backdrop-blur-2xl overflow-hidden">
         {/* Top Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#FFC928]/15 bg-[#080808]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white/80">
           <div>
-            <h2 className="font-display text-sm tracking-[0.22em] text-[#FFC928] uppercase">
+            <h2 className="font-display text-sm tracking-[0.22em] text-[#5267EE] uppercase">
               System Configuration
             </h2>
-            <p className="text-xs text-white/50 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               JARVIS AI · Personal Android Assistant Architecture & Controls
             </p>
           </div>
@@ -443,14 +443,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close Settings"
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-white/70 hover:text-[#FFC928] hover:bg-white/5 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-slate-500 hover:text-[#5267EE] hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-[#FFC928]/15 bg-[#070707] overflow-x-auto shrink-0">
+        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-slate-200 bg-slate-50/80 overflow-x-auto shrink-0">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -461,8 +461,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
                   active
-                    ? 'bg-[#FFC928] text-black font-semibold'
-                    : 'text-white/65 hover:text-white hover:bg-white/5'
+                    ? 'bg-[#6578F7] text-white font-semibold'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
