@@ -493,6 +493,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>
                       {settings.aiBrain.provider === 'free-unlimited'
                         ? 'Free Unlimited AI Engine'
+                        : settings.aiBrain.provider === 'fcc'
+                        ? 'FCC Cloud AI Gateway'
                         : settings.aiBrain.provider === 'auto-hybrid'
                         ? 'Auto-Hybrid (Google Gemini + Free Backup)'
                         : 'Google Gemini Strict API Mode'}
@@ -525,6 +527,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       id: 'gemini',
                       title: 'Google Gemini Dedicated Mode',
                       desc: 'Direct execution on gemini-3.8-flash and gemini-3.1-flash-lite.',
+                    },
+                    {
+                      id: 'fcc',
+                      title: 'FCC Cloud AI Gateway',
+                      desc: 'Route conversations through your separately hosted FCC gateway with provider/model fallback.',
                     },
                     {
                       id: 'free-unlimited',
