@@ -54,3 +54,43 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(101, 120, 247, 0.45);
 }
+
+
+/* Futuristic White Glass theme: shared surfaces used by legacy feature panels */
+.jarvis-light-ui [class*="bg-[#0"],
+.jarvis-light-ui [class~="bg-black"],
+.jarvis-light-ui [class*="bg-black/"] {
+  background-color: rgba(255, 255, 255, 0.84) !important;
+  background-image: none !important;
+}
+.jarvis-light-ui [class*="border-white"],
+.jarvis-light-ui [class*="border-[#FFC928]/"],
+.jarvis-light-ui [class*="border-[#C5A059]"] {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+.jarvis-light-ui [class*="text-white"]:not([class*="bg-red"]):not([class*="bg-[#6578F7]"]):not([class*="bg-[#5267EE]"]) {
+  color: #334155 !important;
+}
+.jarvis-light-ui [class*="text-white/"] {
+  color: #64748b !important;
+}
+.jarvis-light-ui input:not([type="checkbox"]):not([type="range"]),
+.jarvis-light-ui textarea,
+.jarvis-light-ui select {
+  color: #1e293b;
+}
+.jarvis-light-ui input::placeholder,
+.jarvis-light-ui textarea::placeholder {
+  color: #94a3b8;
+}
+.jarvis-light-ui [class*="shadow-2xl"],
+.jarvis-light-ui [class*="shadow-xl"] {
+  --tw-shadow-color: rgba(45, 61, 110, 0.12);
+}
+.jarvis-light-ui [class*="bg-[#0"] [class*="text-white"],
+.jarvis-light-ui [class~="bg-black"] [class*="text-white"] {
+  color: #334155 !important;
+}
+.jarvis-light-ui [class*="hover:bg-[#FFC928]"]:hover {
+  background-color: rgba(101, 120, 247, 0.08) !important;
+}
