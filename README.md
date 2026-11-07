@@ -94,3 +94,5 @@ A successful CI build confirms compilation and the checks that ran; it does not 
 ## License
 
 See the repository license and individual dependency licenses.
+
+<!-- GitHub connector write-access verification: 2026-11-07; documentation-only change. -->
