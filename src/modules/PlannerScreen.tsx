@@ -31,7 +31,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
   };
 
   return (
-    <section className="fixed inset-x-0 top-[76px] bottom-[100px] z-35 mx-auto flex w-full max-w-3xl flex-col gap-3 overflow-y-auto px-4 pb-3" aria-label="Smart Planner">
+    <section className="fixed inset-x-0 top-[76px] bottom-[100px] z-[35] mx-auto flex w-full max-w-3xl flex-col gap-3 overflow-y-auto px-4 pb-3" aria-label="Smart Planner">
       <div className="flex items-center justify-between px-1">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#6578F7]">JARVIS ORGANIZER</p>
