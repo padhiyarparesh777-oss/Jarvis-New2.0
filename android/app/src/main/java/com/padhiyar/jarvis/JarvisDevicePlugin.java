@@ -167,6 +167,34 @@ public class JarvisDevicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void placeCall(PluginCall call) {
+        String phoneNumber = call.getString("phoneNumber", "").trim();
+        String sanitized = phoneNumber.replaceAll("[^0-9+*#]", "");
+        if (sanitized.isEmpty()) {
+            call.reject("A valid phone number is required.");
+            return;
+        }
+        if (androidx.core.content.ContextCompat.checkSelfPermission(getContext(), android.Manifest.permission.CALL_PHONE)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            call.reject("CALL_PHONE permission is not granted.");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_CALL, Uri.parse("tel:" + Uri.encode(sanitized)));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "Call initiated to " + sanitized);
+            call.resolve(ret);
+        } catch (SecurityException e) {
+            call.reject("Call permission is required: " + e.getMessage());
+        } catch (Exception e) {
+            call.reject("Unable to place call: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void sendSms(PluginCall call) {
         String phoneNumber = call.getString("phoneNumber", "");
         String message = call.getString("message", "");
