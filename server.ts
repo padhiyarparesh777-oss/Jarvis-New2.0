@@ -494,10 +494,10 @@ async function startServer() {
     return supplied.length === expected.length && timingSafeEqual(supplied, expected);
   };
   const sanitizeDiagnosticText = (value: unknown, max = 500): string =>
-    String(value ?? "").replace(/https?:\\/\\/[^\\s)]+/gi, "[url]")
-      .replace(/Bearer\\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
-      .replace(/(api[_-]?key|token|password|secret)\\s*[:=]\\s*[^\\s,;]+/gi, "$1=[redacted]")
-      .replace(/[\\u0000-\\u001f]+/g, " ").slice(0, max);
+    String(value ?? "").replace(/https?:\/\/[^\s)]+/gi, "[url]")
+      .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+      .replace(/(api[_-]?key|token|password|secret)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+      .replace(/[\u0000-\u001f]+/g, " ").slice(0, max);
 
   app.post("/api/diagnostics/ingest", (req, res) => {
     if (!diagnosticsToken) {
