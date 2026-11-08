@@ -104,3 +104,15 @@ export async function sendRemoteDiagnostics(baseUrl: string): Promise<{ sent: nu
   const result = await response.json() as { accepted?: number };
   return { sent: Number(result.accepted || 0), status: 'Securely sent ' + Number(result.accepted || 0) + ' events.' };
 }
+
+export async function fetchRemoteDiagnostics(baseUrl: string): Promise<Array<Record<string, unknown>>> {
+  const config = getRemoteDiagnosticsConfig();
+  if (!config.enabled || !config.token.trim()) throw new Error('Enable remote reports and enter the access token first.');
+  if (!/^https:\/\//i.test(baseUrl)) throw new Error('Remote diagnostics require an HTTPS backend URL.');
+  const response = await fetch(baseUrl.replace(/\/+$/, '') + '/api/diagnostics/recent', {
+    headers: { Authorization: 'Bearer ' + config.token },
+  });
+  if (!response.ok) throw new Error(response.status === 503 ? 'Remote diagnostics are not configured on the backend.' : 'Remote diagnostics rejected the request (HTTP ' + response.status + ').');
+  const result = await response.json() as { events?: Array<Record<string, unknown>> };
+  return Array.isArray(result.events) ? result.events : [];
+}
