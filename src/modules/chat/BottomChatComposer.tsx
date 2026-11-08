@@ -751,7 +751,7 @@ export const BottomChatComposer: React.FC<BottomChatComposerProps> = ({
           {/* Persistent Bottom Chat Bar: Circular + button left, Text input center, Send button right */}
           <form
             onSubmit={handleSubmit}
-            className="flex items-center gap-2.5 w-full rounded-full bg-white/90 border border-slate-200 px-2 py-1.5 shadow-[0_8px_30px_rgba(35,48,90,0.12)] focus-within:border-[#6578F7]/60 transition-colors"
+            className="jarvis-composer-shell flex items-center gap-2.5 w-full rounded-full px-2 py-1.5 transition-colors"
           >
             {/* Circular + Button on the Left */}
             <button
