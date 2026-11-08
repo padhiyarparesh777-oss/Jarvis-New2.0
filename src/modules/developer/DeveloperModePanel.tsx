@@ -91,7 +91,7 @@ export const DeveloperModePanel: React.FC<DeveloperModePanelProps> = ({ backendU
     await check('OTA updater bridge', async () => {
       if (!native) return 'Skipped in browser preview';
       const version = await CapacitorUpdater.getPluginVersion();
-      return 'Capgo plugin ' + String(version.version || 'detected');
+      return 'Capgo plugin ' + String(version);
     });
     await check('Diagnostic capture', () => {
       const count = getDiagnosticEvents().length;
