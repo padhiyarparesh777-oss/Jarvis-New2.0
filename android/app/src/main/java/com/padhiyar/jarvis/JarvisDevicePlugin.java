@@ -72,6 +72,55 @@ public class JarvisDevicePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getFloatingOrbStatus(PluginCall call) {
+        boolean granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
+        JSObject ret = new JSObject();
+        ret.put("running", JarvisFloatingOrbService.isRunning());
+        ret.put("permissionGranted", granted);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void startFloatingOrb(PluginCall call) {
+        Context context = getContext();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + context.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                ret.put("running", false);
+                ret.put("permissionRequired", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Unable to open overlay permission settings: " + e.getMessage());
+            }
+            return;
+        }
+        try {
+            context.startService(new Intent(context, JarvisFloatingOrbService.class));
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("running", true);
+            ret.put("permissionRequired", false);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Unable to start floating orb: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopFloatingOrb(PluginCall call) {
+        boolean stopped = getContext().stopService(new Intent(getContext(), JarvisFloatingOrbService.class));
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("running", false);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void openApp(PluginCall call) {
         String packageName = call.getString("packageName");
         String targetApp = call.getString("targetApp", "Application");
