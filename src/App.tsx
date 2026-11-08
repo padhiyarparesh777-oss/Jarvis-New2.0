@@ -1044,6 +1044,16 @@ export default function App() {
       )}
 
       {/* 4. Persistent Bottom Chat Bar with + Attachment Menu (Photo, Camera, File, PDF) */}
+      {selectedTab === 'home' && (
+        <div className="jarvis-home-shortcuts fixed bottom-[166px] left-0 right-0 z-20 flex justify-center px-5">
+          <div className="flex max-w-md items-center gap-2 overflow-x-auto rounded-full border border-white/10 bg-slate-950/35 p-1.5 shadow-lg backdrop-blur-2xl">
+            <button type="button" onClick={() => setSelectedTab('device')} className="whitespace-nowrap rounded-full border border-cyan-200/15 bg-cyan-200/10 px-3 py-2 text-[10px] font-semibold text-cyan-100">Device Hub</button>
+            <button type="button" onClick={() => handleExecuteDeviceAction({ actionType: 'CONTROL_MUSIC', musicCommand: 'TOGGLE' })} className="whitespace-nowrap rounded-full border border-violet-200/15 bg-violet-200/10 px-3 py-2 text-[10px] font-semibold text-violet-100">Music</button>
+            <button type="button" onClick={() => setSelectedTab('planner')} className="whitespace-nowrap rounded-full border border-amber-200/15 bg-amber-200/10 px-3 py-2 text-[10px] font-semibold text-amber-100">Automations</button>
+          </div>
+        </div>
+      )}
+
       {(selectedTab === 'home' || selectedTab === 'chats') && <BottomChatComposer
         interactionState={interactionState}
         liveCaption={liveCaption}
