@@ -975,7 +975,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-full h-full bg-black text-white overflow-hidden select-none">\n      {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
+    <div className="jarvis-app-shell relative w-full h-full text-white overflow-hidden select-none">\n      {/* 1. Full-Screen 3D Golden AI Orb & Neural Network Core */}
       <NeuralNetworkCore
         interactionState={interactionState}
         getAudioMetrics={getAudioMetricsCallback}
@@ -994,7 +994,7 @@ export default function App() {
       />
 
       {/* 2. Minimal Top Header: "JARVIS AI" top-left and ONE gold Settings gear top-right */}
-      <header className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-6 pt-[max(1.1rem,env(safe-area-inset-top,1.1rem))] pb-3 pointer-events-none">
+      <header className="jarvis-topbar fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-6 pt-[max(1.1rem,env(safe-area-inset-top,1.1rem))] pb-3 pointer-events-none">
         <h1 className="font-display text-sm sm:text-base font-semibold tracking-[0.22em] text-slate-900 whitespace-nowrap shrink-0">
           JARVIS <span className="text-[#258EDB]">AI</span>
         </h1>
@@ -1070,8 +1070,8 @@ export default function App() {
       />
 
       {/* 5. Top-Right Settings Drawer */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-[max(0.65rem,env(safe-area-inset-bottom,0.65rem))] pt-2">
-        <div className="mx-auto flex max-w-md items-center justify-around rounded-[26px] border border-white/85 bg-white/75 px-2 py-2 shadow-[0_12px_40px_rgba(48,62,110,0.14)] backdrop-blur-2xl">
+      <nav className="jarvis-bottom-nav fixed bottom-0 left-0 right-0 z-40 px-4 pb-[max(0.65rem,env(safe-area-inset-bottom,0.65rem))] pt-2">
+        <div className="jarvis-bottom-nav-inner mx-auto flex max-w-md items-center justify-around rounded-[26px] px-2 py-2">
           <button type="button" onClick={() => { setSelectedTab('home'); setIsChatDrawerOpen(false); setIsSettingsOpen(false); }} aria-label="Home" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'home' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
             <House className="h-5 w-5" /><span>Home</span>
           </button>
