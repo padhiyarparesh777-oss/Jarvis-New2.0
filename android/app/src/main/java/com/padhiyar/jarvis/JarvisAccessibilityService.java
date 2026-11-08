@@ -190,6 +190,8 @@ public class JarvisAccessibilityService extends AccessibilityService {
      * Scrolls the active screen forward or backward.
      */
     public boolean performScroll(boolean forward) {
+        // Do not allow even navigation gestures inside banking, payment, OTP or password apps.
+        if (isSensitiveForegroundApp()) return false;
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return false;
 
