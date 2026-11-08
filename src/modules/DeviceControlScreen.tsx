@@ -107,8 +107,8 @@ export const DeviceControlScreen: React.FC<DeviceControlScreenProps> = ({
                 <span className={'h-2 w-2 rounded-full ' + (ready ? 'bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.7)]' : 'bg-amber-300')}/>
                 <div className="min-w-0 flex-1"><p className="text-xs font-medium">{item.label}</p><p className="mt-0.5 text-[10px] text-slate-500">{item.hint}</p></div>
                 <span className={'text-[10px] ' + (ready ? 'text-emerald-200' : 'text-amber-200')}>{ready ? 'Ready' : (item.key === 'notificationListener' || item.key === 'accessibilityService' ? 'Enable' : item.key === 'backgroundService' ? 'Start' : 'Allow')}</span>
-                <ChevronRight className="h-3.5 w-3.5 text-slate-600"/>
-              </div>;
+                <ChevronRight className="h-3.5 w-3.5 text-slate-400"/>
+              </button>;
             })}
           </div>
           <div className="mt-2 flex items-start gap-2 border-t border-white/10 pt-3 text-[10px] leading-relaxed text-slate-500"><CircleHelp className="mt-0.5 h-3.5 w-3.5 shrink-0"/>Special Android permissions cannot be silently enabled by an app. JARVIS will open the correct system settings when needed.</div>
