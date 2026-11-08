@@ -31,7 +31,7 @@ export const DeveloperModePanel: React.FC<DeveloperModePanelProps> = ({ backendU
     setEvents(getDiagnosticEvents());
   }, []);
 
-  const baseUrl = backendUrl.trim().replace(/\\/+$/, '');
+  const baseUrl = backendUrl.trim().replace(/\/+$/, '');
 
   const runTests = async () => {
     setRunning(true);
