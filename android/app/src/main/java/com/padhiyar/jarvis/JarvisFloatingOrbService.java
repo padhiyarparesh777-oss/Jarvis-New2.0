@@ -1,0 +1,96 @@
+package com.padhiyar.jarvis;
+
+import android.app.Service;
+import android.content.Intent;
+import android.graphics.PixelFormat;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
+import android.os.IBinder;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.TextView;
+
+/** User-enabled floating launcher. It never captures audio or screen content itself. */
+public class JarvisFloatingOrbService extends Service {
+    private WindowManager windowManager;
+    private View orb;
+    private WindowManager.LayoutParams params;
+    private float downX, downY;
+    private int startX, startY;
+    private boolean moved;
+
+    @Override public void onCreate() {
+        super.onCreate();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
+            stopSelf();
+            return;
+        }
+        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        TextView bubble = new TextView(this);
+        bubble.setText("J");
+        bubble.setTextColor(0xFF071018);
+        bubble.setTextSize(22f);
+        bubble.setGravity(Gravity.CENTER);
+        bubble.setElevation(12f);
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{0xFF8BDFFF, 0xFF35B8F4, 0xFF147BB8});
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setStroke(2, 0xCCFFFFFF);
+        bubble.setBackground(bg);
+        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE;
+        params = new WindowManager.LayoutParams(
+            dp(58), dp(58), type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        );
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.x = dp(16);
+        params.y = dp(180);
+        bubble.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    downX = event.getRawX(); downY = event.getRawY();
+                    startX = params.x; startY = params.y; moved = false;
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = event.getRawX() - downX, dy = event.getRawY() - downY;
+                    if (Math.abs(dx) > dp(5) || Math.abs(dy) > dp(5)) moved = true;
+                    if (moved) {
+                        params.x = startX + (int) dx;
+                        params.y = startY + (int) dy;
+                        windowManager.updateViewLayout(orb, params);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (!moved) {
+                        Intent launch = new Intent(this, MainActivity.class);
+                        launch.setAction(Intent.ACTION_ASSIST);
+                        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        startActivity(launch);
+                    }
+                    return true;
+            }
+            return false;
+        });
+        orb = bubble;
+        try { windowManager.addView(orb, params); } catch (Exception e) { stopSelf(); }
+    }
+
+    private int dp(float value) { return (int) (value * getResources().getDisplayMetrics().density + 0.5f); }
+
+    @Override public int onStartCommand(Intent intent, int flags, int startId) { return START_STICKY; }
+
+    @Override public void onDestroy() {
+        if (windowManager != null && orb != null) {
+            try { windowManager.removeView(orb); } catch (Exception ignored) {}
+        }
+        orb = null;
+        super.onDestroy();
+    }
+
+    @Override public IBinder onBind(Intent intent) { return null; }
+}
