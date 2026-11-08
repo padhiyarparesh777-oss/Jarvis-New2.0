@@ -26,9 +26,7 @@ public class MainActivity extends BridgeActivity {
             startService(localServerIntent);
         }
 
-        if (Intent.ACTION_ASSIST.equals(getIntent() != null ? getIntent().getAction() : null)) {
-            dispatchAssistantInvocation();
-        }
+        dispatchIntentAction(getIntent());
 
         // Configure WebView settings for audio responsiveness and media permissions
         if (getBridge() != null && getBridge().getWebView() != null) {
@@ -58,16 +56,27 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (intent != null && Intent.ACTION_ASSIST.equals(intent.getAction())) {
-            dispatchAssistantInvocation();
-        }
+        dispatchIntentAction(intent);
     }
 
-    private void dispatchAssistantInvocation() {
+    private void dispatchIntentAction(Intent intent) {
+        if (intent == null || intent.getAction() == null) return;
+        String action = intent.getAction();
+        if (Intent.ACTION_ASSIST.equals(action) || "com.padhiyar.jarvis.ACTION_MIC_ON".equals(action)) dispatchAssistantInvocation("jarvis:assist");
+        else if ("com.padhiyar.jarvis.ACTION_MIC_OFF".equals(action)) dispatchAssistantInvocation("jarvis:assist-stop");
+    }
+
+    private void dispatchAssistantInvocation(String eventName) {
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (getBridge() != null && getBridge().getWebView() != null) {
-                getBridge().triggerWindowJSEvent("jarvis:assist");
-            }
+            if (getBridge() != null && getBridge().getWebView() != null) getBridge().triggerWindowJSEvent(eventName);
         }, 900);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
+            try { startService(new Intent(this, JarvisFloatingOrbService.class)); } catch (Exception ignored) {}
+        }
     }
 }
