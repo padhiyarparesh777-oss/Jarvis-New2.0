@@ -148,6 +148,11 @@ const DEFAULT_KNOWN_PACKAGES: Record<string, { pkg: string; scheme: string; webF
     scheme: 'spotify://',
     webFallback: 'https://open.spotify.com',
   },
+  music: {
+    pkg: 'com.heytap.music',
+    scheme: 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.heytap.music;end',
+    webFallback: 'https://play.google.com/store/apps/details?id=com.heytap.music',
+  },
   maps: {
     pkg: 'com.google.android.apps.maps',
     scheme: 'geo:0,0?q=',
@@ -766,6 +771,25 @@ export async function processDeviceAction(
       androidIntentUri: !Capacitor.isNativePlatform() && fallbackUri ? fallbackUri : undefined,
       timestamp,
     };
+  }
+
+  // HeyTap Music media session commands (direct execution).
+  if (actionType === 'CONTROL_MUSIC') {
+    if (!Capacitor.isNativePlatform()) {
+      return { id, request, status: 'unsupported', title: 'Android Music Control Required', detail: 'Install the Android JARVIS app to control HeyTap Music.', timestamp };
+    }
+    try {
+      const result = await JarvisNativeDevice.controlMusic({ command: request.musicCommand || 'STATUS', packageName: 'com.heytap.music' });
+      return {
+        id, request,
+        status: result.success ? 'confirmed' : 'permission_missing',
+        title: result.success ? 'HeyTap Music Command Sent' : 'HeyTap Music Needs Setup',
+        detail: result.message + (result.title ? ` Current track: ${result.title}` : ''),
+        timestamp,
+      };
+    } catch (error) {
+      return { id, request, status: 'permission_missing', title: 'Music Control Unavailable', detail: error instanceof Error ? error.message : String(error), timestamp };
+    }
   }
 
   // 5. Phone Calls (CONFIRMATION REQUIRED)
