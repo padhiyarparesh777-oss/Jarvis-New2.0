@@ -4,6 +4,7 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Activity, Bug, CheckCircle2, CircleAlert, CloudUpload, Download, RefreshCw, ShieldCheck, Smartphone, Wifi } from 'lucide-react';
 import {
   clearDiagnosticEvents,
+  fetchRemoteDiagnostics,
   getDiagnosticEvents,
   getRemoteDiagnosticsConfig,
   installGlobalDiagnosticCapture,
@@ -27,6 +28,7 @@ export const DeveloperModePanel: React.FC<DeveloperModePanelProps> = ({ backendU
   const [ota, setOta] = useState<Record<string, unknown> | null>(null);
   const [otaMessage, setOtaMessage] = useState('Updater status not checked yet.');
   const [remoteMessage, setRemoteMessage] = useState('');
+  const [remoteEvents, setRemoteEvents] = useState<Array<Record<string, unknown>>>([]);
 
   useEffect(() => {
     installGlobalDiagnosticCapture();
@@ -107,6 +109,17 @@ export const DeveloperModePanel: React.FC<DeveloperModePanelProps> = ({ backendU
     setRemoteDiagnosticsConfig(next);
   };
 
+  const loadRemoteDiagnostics = async () => {
+    setRemoteMessage('Loading remote diagnostics…');
+    try {
+      const result = await fetchRemoteDiagnostics(baseUrl);
+      setRemoteEvents(result);
+      setRemoteMessage('Loaded ' + result.length + ' remote events.');
+    } catch (error) {
+      setRemoteMessage(error instanceof Error ? error.message : 'Unable to load remote reports.');
+    }
+  };
+
   const uploadDiagnostics = async () => {
     setRemoteMessage('Sending diagnostics securely…');
     try {
@@ -157,6 +170,8 @@ export const DeveloperModePanel: React.FC<DeveloperModePanelProps> = ({ backendU
         <label className="flex items-center justify-between gap-3 text-xs"><span>Allow remote diagnostic reports</span><input type="checkbox" checked={remote.enabled} onChange={(e) => saveRemote({ ...remote, enabled: e.target.checked })} className="h-4 w-4 accent-cyan-300"/></label>
         <input type="password" value={remote.token} onChange={(e) => saveRemote({ ...remote, token: e.target.value })} placeholder="Backend diagnostics access token" autoComplete="off" className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-3 text-xs text-white placeholder:text-slate-500"/>
         <button type="button" disabled={!remote.enabled || !remote.token.trim()} onClick={uploadDiagnostics} className="w-full rounded-xl border border-cyan-200/20 bg-cyan-200/10 px-3 py-3 text-xs font-semibold text-cyan-100 disabled:opacity-40"><CloudUpload className="mr-1 inline h-4 w-4"/> Send error report</button>
+        <button type="button" disabled={!remote.enabled || !remote.token.trim()} onClick={loadRemoteDiagnostics} className="w-full rounded-xl border border-white/10 bg-white/[.04] px-3 py-2.5 text-xs text-slate-200 disabled:opacity-40">View remote reports</button>
+        {remoteEvents.slice(0,10).map((event, index) => <div key={String(event.receivedAt || index)} className="rounded-xl border border-white/[.07] bg-black/20 p-3"><p className="text-[10px] uppercase text-cyan-200">{String(event.level || 'event')} · {String(event.source || 'remote')}</p><p className="mt-1 break-words text-xs text-slate-300">{String(event.message || '')}</p><p className="mt-1 text-[9px] text-slate-500">{String(event.receivedAt || '')}</p></div>)}
         {remoteMessage && <p className="text-xs text-slate-300">{remoteMessage}</p>}
       </section>
 
