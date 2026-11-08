@@ -68,6 +68,7 @@ import {
 } from '../device/deviceControl';
 import { voiceEngine } from '../voice/VoiceEngine';
 import { aiService } from '../ai/aiService';
+import { FloatingOrbSettings } from './FloatingOrbSettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -940,6 +941,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'accessibility' && (
             <div className="space-y-6">
+              <FloatingOrbSettings />
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 flex items-center justify-between">
                 <div>
                   <div className="text-xs uppercase tracking-wider text-[#C5A059]">Accessibility Service Status</div>
