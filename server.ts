@@ -78,7 +78,7 @@ const deviceActionTool: FunctionDeclaration = {
       requiresConfirmation: {
         type: Type.BOOLEAN,
         description:
-          "True if this action is sensitive (like sending SMS/WhatsApp or placing a call) and must ask user confirmation.",
+          "Set false for a clearly requested call. JARVIS resolves the contact locally and places the call directly. Keep true for money, payments, destructive actions, or ambiguous high-risk operations.",
       },
     },
     required: ["actionType"],
