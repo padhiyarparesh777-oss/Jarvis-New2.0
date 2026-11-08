@@ -611,7 +611,6 @@ export function isActionDirectExecution(
     case 'WEB_SEARCH_INTENT':
     case 'SET_ALARM':
     case 'SET_TIMER':
-    case 'DIAL_NUMBER':
       return true;
     default:
       return false;
@@ -627,6 +626,7 @@ export function isActionConfirmationRequired(
 ): boolean {
   // Explicit sensitive categories
   if (
+    actionType === 'DIAL_NUMBER' ||
     actionType === 'SEND_SMS' ||
     actionType === 'SEND_WHATSAPP' ||
     actionType === 'LOCK_DEVICE'
