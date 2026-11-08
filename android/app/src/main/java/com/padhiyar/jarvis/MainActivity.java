@@ -73,7 +73,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onStop() {
+    public void onStop() {
         super.onStop();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
             try { startService(new Intent(this, JarvisFloatingOrbService.class)); } catch (Exception ignored) {}
