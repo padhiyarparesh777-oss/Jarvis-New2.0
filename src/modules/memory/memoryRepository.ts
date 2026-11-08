@@ -22,7 +22,7 @@ const STORAGE_KEYS = {
 
 export const DEFAULT_SETTINGS: JarvisSettings = {
   aiBrain: {
-    provider: 'auto-hybrid',
+    provider: 'gemini',
     model: 'gemini-3.8-flash',
     fallbackModel: 'gemini-3.1-flash-lite',
     responseStyle: 'natural',
