@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { timingSafeEqual } from "node:crypto";
 import {
   GoogleGenAI,
   Type,
@@ -481,6 +482,83 @@ async function startServer() {
   });
 
   app.use(express.json({ limit: "35mb" }));
+
+  // Privacy-first remote diagnostics: opt-in client uploads, owner-token protected reads.
+  const remoteDiagnosticEvents: Array<Record<string, unknown>> = [];
+  const diagnosticRate = new Map<string, { count: number; resetAt: number }>();
+  const diagnosticsToken = (process.env.JARVIS_DIAGNOSTICS_TOKEN || "").trim();
+  const authorizeDiagnostics = (authorization: string | undefined): boolean => {
+    if (!diagnosticsToken || !authorization?.startsWith("Bearer ")) return false;
+    const supplied = Buffer.from(authorization.slice(7));
+    const expected = Buffer.from(diagnosticsToken);
+    return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+  };
+  const sanitizeDiagnosticText = (value: unknown, max = 500): string =>
+    String(value ?? "").replace(/https?:\\/\\/[^\\s)]+/gi, "[url]")
+      .replace(/Bearer\\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+      .replace(/(api[_-]?key|token|password|secret)\\s*[:=]\\s*[^\\s,;]+/gi, "$1=[redacted]")
+      .replace(/[\\u0000-\\u001f]+/g, " ").slice(0, max);
+
+  app.post("/api/diagnostics/ingest", (req, res) => {
+    if (!diagnosticsToken) {
+      res.status(503).json({ error: "DIAGNOSTICS_NOT_CONFIGURED", message: "Set JARVIS_DIAGNOSTICS_TOKEN on the backend." });
+      return;
+    }
+    if (!authorizeDiagnostics(req.header("authorization"))) {
+      res.status(401).json({ error: "UNAUTHORIZED" });
+      return;
+    }
+    const now = Date.now();
+    const ip = String(req.ip || "unknown");
+    const rate = diagnosticRate.get(ip);
+    if (rate && rate.resetAt > now && rate.count >= 20) {
+      res.status(429).json({ error: "RATE_LIMITED" });
+      return;
+    }
+    if (!rate || rate.resetAt <= now) diagnosticRate.set(ip, { count: 1, resetAt: now + 60000 });
+    else rate.count += 1;
+
+    const body = req.body as { installationId?: unknown; platform?: unknown; events?: unknown };
+    if (!Array.isArray(body.events) || body.events.length < 1 || body.events.length > 30) {
+      res.status(400).json({ error: "INVALID_EVENTS", message: "Send between 1 and 30 diagnostic events." });
+      return;
+    }
+    const installationId = sanitizeDiagnosticText(body.installationId, 80);
+    if (!installationId || installationId.length < 8) {
+      res.status(400).json({ error: "INVALID_INSTALLATION_ID" });
+      return;
+    }
+    const allowedLevels = new Set(["info", "warning", "error"]);
+    const accepted = body.events.slice(0, 30).flatMap((item: unknown) => {
+      if (!item || typeof item !== "object") return [];
+      const event = item as Record<string, unknown>;
+      if (!allowedLevels.has(String(event.level)) || !event.message) return [];
+      return [{
+        installationId,
+        receivedAt: new Date().toISOString(),
+        eventAt: sanitizeDiagnosticText(event.at, 40),
+        level: String(event.level),
+        source: sanitizeDiagnosticText(event.source, 60),
+        message: sanitizeDiagnosticText(event.message, 500),
+        platform: sanitizeDiagnosticText(body.platform, 120),
+      }];
+    });
+    remoteDiagnosticEvents.unshift(...accepted);
+    if (remoteDiagnosticEvents.length > 200) remoteDiagnosticEvents.length = 200;
+    res.json({ accepted: accepted.length });
+  });
+
+  app.get("/api/diagnostics/recent", (req, res) => {
+    if (!diagnosticsToken) {
+      res.status(503).json({ error: "DIAGNOSTICS_NOT_CONFIGURED" });
+      return;
+    }
+    if (!authorizeDiagnostics(req.header("authorization"))) {
+      res.status(401).json({ error: "UNAUTHORIZED" });
+      return;
+    }
+    res.json({ events: remoteDiagnosticEvents.slice(0, 100), count: remoteDiagnosticEvents.length });
+  });
 
   // 1. Check AI Backend Status & Model Availability
   app.get("/api/ai/status", async (_req, res) => {
