@@ -801,6 +801,13 @@ export default function App() {
     triggerTransientErrorState,
   ]);
 
+  // Floating orb voice toggle: tap starts/stops the same in-app speech pipeline.
+  useEffect(() => {
+    const onOrbStop = () => handleStopActiveAction();
+    window.addEventListener('jarvis:assist-stop', onOrbStop);
+    return () => window.removeEventListener('jarvis:assist-stop', onOrbStop);
+  }, [handleStopActiveAction]);
+
   // Android's default-assistant gesture enters the same guarded voice pipeline as the orb.
   useEffect(() => {
     const onAssistantInvocation = () => {
