@@ -30,6 +30,12 @@ jobs:
       - name: Install dependencies (sync package lock for OTA plugin)
         run: npm install --no-audit --no-fund
 
+      - name: TypeScript validation
+        run: npm run lint
+
+      - name: Automated regression tests
+        run: npm test
+
       - name: Build web app
         run: npm run build
 
