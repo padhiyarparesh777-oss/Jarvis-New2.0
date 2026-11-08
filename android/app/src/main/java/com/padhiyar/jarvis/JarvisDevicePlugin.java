@@ -4,6 +4,11 @@ import android.app.ActivityManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.admin.DevicePolicyManager;
+import android.media.AudioManager;
+import android.media.MediaMetadata;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.media.session.PlaybackState;
 import android.app.role.RoleManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -479,6 +484,80 @@ public class JarvisDevicePlugin extends Plugin {
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Failed to display notification: " + e.getMessage());
+        }
+    }
+
+    // =========================================================================
+    // HEYTAP MUSIC / ANDROID MEDIA SESSION CONTROL
+    // =========================================================================
+
+    @PluginMethod
+    public void controlMusic(PluginCall call) {
+        String command = call.getString("command", "STATUS").toUpperCase();
+        String queryPackage = call.getString("packageName", "com.heytap.music");
+        try {
+            MediaSessionManager manager = (MediaSessionManager) getContext().getSystemService(Context.MEDIA_SESSION_SERVICE);
+            if (manager == null) { call.reject("Android media session manager unavailable."); return; }
+            List<MediaController> sessions = manager.getActiveSessions(
+                new ComponentName(getContext(), JarvisNotificationListenerService.class));
+            MediaController selected = null;
+            for (MediaController controller : sessions) {
+                if (controller.getPackageName().equals(queryPackage) ||
+                    (queryPackage.equals("com.heytap.music") && controller.getPackageName().equals("com.heytap.music"))) {
+                    selected = controller; break;
+                }
+            }
+            if (selected == null) {
+                JSObject ret = new JSObject();
+                ret.put("success", false);
+                ret.put("message", "HeyTap Music ka active playback session nahi mila. Music app mein ek song play karke Notification Access enable karo.");
+                ret.put("listenerEnabled", JarvisNotificationListenerService.isConnected());
+                call.resolve(ret);
+                return;
+            }
+            MediaController.TransportControls controls = selected.getTransportControls();
+            PlaybackState state = selected.getPlaybackState();
+            MediaMetadata metadata = selected.getMetadata();
+            long position = state != null ? Math.max(0, state.getPosition()) : 0;
+            long duration = metadata != null ? metadata.getLong(MediaMetadata.METADATA_KEY_DURATION) : 0;
+            switch (command) {
+                case "PLAY": controls.play(); break;
+                case "PAUSE": controls.pause(); break;
+                case "TOGGLE":
+                    if (state != null && state.getState() == PlaybackState.STATE_PLAYING) controls.pause();
+                    else controls.play();
+                    break;
+                case "NEXT": controls.skipToNext(); break;
+                case "PREVIOUS": controls.skipToPrevious(); break;
+                case "STOP": controls.stop(); break;
+                case "SEEK_FORWARD": controls.seekTo(Math.min(duration > 0 ? duration : position + 15000, position + 15000)); break;
+                case "SEEK_BACKWARD": controls.seekTo(Math.max(0, position - 15000)); break;
+                case "VOLUME_UP":
+                case "VOLUME_DOWN":
+                    AudioManager audio = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+                    if (audio == null) throw new IllegalStateException("Audio service unavailable");
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                        command.equals("VOLUME_UP") ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER,
+                        AudioManager.FLAG_SHOW_UI);
+                    break;
+                case "STATUS": break;
+                default: call.reject("Unsupported music command: " + command); return;
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("message", "Music command dispatched: " + command);
+            ret.put("packageName", selected.getPackageName());
+            ret.put("title", metadata != null ? metadata.getString(MediaMetadata.METADATA_KEY_TITLE) : "");
+            ret.put("artist", metadata != null ? metadata.getString(MediaMetadata.METADATA_KEY_ARTIST) : "");
+            ret.put("album", metadata != null ? metadata.getString(MediaMetadata.METADATA_KEY_ALBUM) : "");
+            ret.put("positionMs", position);
+            ret.put("durationMs", duration);
+            ret.put("isPlaying", state != null && state.getState() == PlaybackState.STATE_PLAYING);
+            call.resolve(ret);
+        } catch (SecurityException e) {
+            call.reject("JARVIS ko Notification Access permission chahiye for media controls.");
+        } catch (Exception e) {
+            call.reject("Music control failed: " + e.getMessage());
         }
     }
 
