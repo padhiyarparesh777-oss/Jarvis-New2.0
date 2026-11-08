@@ -36,14 +36,14 @@ function getGeminiClient(): GoogleGenAI | null {
 const deviceActionTool: FunctionDeclaration = {
   name: "executeDeviceAction",
   description:
-    "Trigger an Android device control intent or system action when the user explicitly requests opening an app, setting an alarm, setting a timer, making a phone call, sending an SMS or WhatsApp message, navigating the screen, toggling system settings, or checking device status.",
+    "Trigger Android device actions, including HeyTap Music media playback controls. For music, use CONTROL_MUSIC and musicCommand; for app UI search, playlists, lyrics and equalizer use NAVIGATE_SCREEN with Accessibility screen reading and tap/type.",
   parameters: {
     type: Type.OBJECT,
     properties: {
       actionType: {
         type: Type.STRING,
         description:
-          "One of: OPEN_APP, SET_ALARM, SET_TIMER, DIAL_NUMBER, SEND_SMS, SEND_WHATSAPP, OPEN_SETTINGS, CHECK_DEVICE_STATUS, NAVIGATE_SCREEN, WEB_SEARCH_INTENT",
+          "One of: OPEN_APP, SET_ALARM, SET_TIMER, DIAL_NUMBER, SEND_SMS, SEND_WHATSAPP, OPEN_SETTINGS, CHECK_DEVICE_STATUS, NAVIGATE_SCREEN, WEB_SEARCH_INTENT, CONTROL_MUSIC",
       },
       targetApp: {
         type: Type.STRING,
@@ -74,6 +74,10 @@ const deviceActionTool: FunctionDeclaration = {
         type: Type.STRING,
         description:
           "If actionType is NAVIGATE_SCREEN, one of: BACK, HOME, SCROLL_DOWN, SCROLL_UP, TAP.",
+      },
+      musicCommand: {
+        type: Type.STRING,
+        description: "If actionType is CONTROL_MUSIC, one of: STATUS, PLAY, PAUSE, TOGGLE, NEXT, PREVIOUS, STOP, SEEK_FORWARD, SEEK_BACKWARD, VOLUME_UP, VOLUME_DOWN. Use HeyTap Music package com.heytap.music.",
       },
       requiresConfirmation: {
         type: Type.BOOLEAN,
