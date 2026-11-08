@@ -168,8 +168,8 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
 
     // 1. Scene, Camera, Renderer setup on pure #000000 canvas
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
-    scene.fog = new THREE.FogExp2(0x000000, 0.04);
+    scene.background = new THREE.Color(0x050914);
+    scene.fog = new THREE.FogExp2(0x050914, 0.035);
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
@@ -192,7 +192,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
         : Math.min(window.devicePixelRatio || 1, animationQuality === 'ultra' ? 2 : 1.5)
     );
     renderer.setSize(width, height);
-    renderer.setClearColor(0x000000, 1);
+    renderer.setClearColor(0x050914, 1);
 
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
@@ -1430,7 +1430,7 @@ export const NeuralNetworkCore: React.FC<NeuralNetworkCoreProps> = ({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onKeyDown={handleKeyDown}
-      className="fixed inset-0 w-full h-full bg-black cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FFC928]/40"
+      className="jarvis-neural-canvas fixed inset-0 w-full h-full cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FFC928]/40"
     />
   );
 };
