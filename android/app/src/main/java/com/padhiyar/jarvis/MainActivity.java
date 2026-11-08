@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Build;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
@@ -16,6 +17,14 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(JarvisPermissionsPlugin.class);
         registerPlugin(JarvisDevicePlugin.class);
         super.onCreate(savedInstanceState);
+
+        // Start the private on-device API server whenever JARVIS opens.
+        Intent localServerIntent = new Intent(this, JarvisLocalServerService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(localServerIntent);
+        } else {
+            startService(localServerIntent);
+        }
 
         if (Intent.ACTION_ASSIST.equals(getIntent() != null ? getIntent().getAction() : null)) {
             dispatchAssistantInvocation();
