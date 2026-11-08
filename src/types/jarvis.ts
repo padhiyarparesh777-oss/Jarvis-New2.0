@@ -143,7 +143,7 @@ export interface ContactInfo {
 
 export interface JarvisSettings {
   aiBrain: {
-    provider: 'auto-hybrid' | 'free-unlimited' | 'gemini' | 'fcc';
+    provider: 'gemini';
     model: 'gemini-3.8-flash' | 'gemini-3.1-flash-lite';
     fallbackModel: 'gemini-3.1-flash-lite' | 'gemini-3.8-flash';
     responseStyle: ResponseStyle;
