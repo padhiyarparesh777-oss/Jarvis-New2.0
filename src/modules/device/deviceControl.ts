@@ -820,9 +820,9 @@ export async function processDeviceAction(
     return {
       id,
       request,
-      status: 'intent_dispatched',
-      title: `Opening Phone Dialer: ${target || 'Dialer'}`,
-      detail: `Opened the Android dialer with ${target || 'the requested number'} ready. Tap Call in the dialer to place the call.`,
+      status: 'awaiting_confirmation',
+      title: `Confirm Call: ${target || 'Phone Dialer'}`,
+      detail: `Review the number ${target || 'in the dialer'} and confirm before opening the dialer. JARVIS will not place the call silently.`,
       androidIntentUri: telUri,
       timestamp,
     };
