@@ -58,6 +58,16 @@
         <!-- Optional user-enabled floating JARVIS launcher -->
         <service android:name=".JarvisFloatingOrbService" android:exported="false" />
 
+        <!-- Private on-device HTTP API server (loopback only) -->
+        <service
+            android:name=".JarvisLocalServerService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-initiated local API server for the JARVIS assistant app" />
+        </service>
+
         <!-- Background Assistant Foreground Service -->
         <service
             android:name=".JarvisBackgroundService"
