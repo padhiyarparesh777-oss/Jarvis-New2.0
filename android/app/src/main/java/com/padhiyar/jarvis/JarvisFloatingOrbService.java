@@ -14,6 +14,8 @@ import android.widget.TextView;
 
 /** User-enabled floating launcher. It never captures audio or screen content itself. */
 public class JarvisFloatingOrbService extends Service {
+    private static volatile boolean running = false;
+    public static boolean isRunning() { return running; }
     private WindowManager windowManager;
     private View orb;
     private WindowManager.LayoutParams params;
@@ -77,7 +79,7 @@ public class JarvisFloatingOrbService extends Service {
             return false;
         });
         orb = bubble;
-        try { windowManager.addView(orb, params); } catch (Exception e) { stopSelf(); }
+        try { windowManager.addView(orb, params); running = true; } catch (Exception e) { running = false; stopSelf(); }
     }
 
     private int dp(float value) { return (int) (value * getResources().getDisplayMetrics().density + 0.5f); }
@@ -85,6 +87,7 @@ public class JarvisFloatingOrbService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) { return START_STICKY; }
 
     @Override public void onDestroy() {
+        running = false;
         if (windowManager != null && orb != null) {
             try { windowManager.removeView(orb); } catch (Exception ignored) {}
         }
