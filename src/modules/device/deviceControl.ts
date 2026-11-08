@@ -101,6 +101,11 @@ interface JarvisDevicePlugin {
   startBackgroundService(): Promise<{ success: boolean; running: boolean }>;
   stopBackgroundService(): Promise<{ success: boolean; running: boolean }>;
 
+  // Floating orb overlay
+  getFloatingOrbStatus(): Promise<{ running: boolean; permissionGranted: boolean }>;
+  startFloatingOrb(): Promise<{ success: boolean; running: boolean; permissionRequired?: boolean }>;
+  stopFloatingOrb(): Promise<{ success: boolean; running: boolean }>;
+
   // Notification Listener
   isNotificationListenerEnabled(): Promise<{ enabled: boolean; connected: boolean }>;
   openNotificationListenerSettings(): Promise<{ success: boolean }>;
