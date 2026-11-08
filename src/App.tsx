@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Settings, ExternalLink, X, House, MessageCircle, CalendarDays } from 'lucide-react';
+import { Settings, ExternalLink, X, House, MessageCircle, CalendarDays, Smartphone } from 'lucide-react';
 import {
   ActiveTimerOrAlarm,
   AutomationLog,
@@ -44,6 +44,7 @@ import { NeuralNetworkCore } from './modules/neural/NeuralNetworkCore';
 import { BottomChatComposer } from './modules/chat/BottomChatComposer';
 import { SettingsModal } from './modules/settings/SettingsModal';
 import { PlannerScreen } from './modules/PlannerScreen';
+import { DeviceControlScreen } from './modules/DeviceControlScreen';
 import { executeAutomationActions, markAutomationFired, shouldRunForEvent } from './modules/automation/automationEngine';
 
 function isCurrentlyQuietHours(settings: JarvisSettings): boolean {
@@ -103,7 +104,7 @@ export default function App() {
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [selectedTab, setSelectedTab] = useState<'home' | 'chats' | 'planner' | 'settings'>('home');
+  const [selectedTab, setSelectedTab] = useState<'home' | 'chats' | 'planner' | 'device' | 'settings'>('home');
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [permissions, setPermissions] = useState<PermissionStatusMap>({
     microphone: 'prompt',
@@ -1043,7 +1044,7 @@ export default function App() {
       )}
 
       {/* 4. Persistent Bottom Chat Bar with + Attachment Menu (Photo, Camera, File, PDF) */}
-      <BottomChatComposer
+      {(selectedTab === 'home' || selectedTab === 'chats') && <BottomChatComposer
         interactionState={interactionState}
         liveCaption={liveCaption}
         captionSubtext={captionSubtext}
@@ -1067,26 +1068,28 @@ export default function App() {
           )
         }
         onErrorFeedback={(msg) => triggerTransientErrorState(msg)}
-      />
+      />}
 
       {/* 5. Top-Right Settings Drawer */}
-      <nav className="jarvis-bottom-nav fixed bottom-0 left-0 right-0 z-40 px-4 pb-[max(0.65rem,env(safe-area-inset-bottom,0.65rem))] pt-2">
-        <div className="jarvis-bottom-nav-inner mx-auto flex max-w-md items-center justify-around rounded-[26px] px-2 py-2">
-          <button type="button" onClick={() => { setSelectedTab('home'); setIsChatDrawerOpen(false); setIsSettingsOpen(false); }} aria-label="Home" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'home' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+      <nav className="jarvis-bottom-nav fixed bottom-0 left-0 right-0 z-40 px-3 pb-[max(0.65rem,env(safe-area-inset-bottom,0.65rem))] pt-2">
+        <div className="jarvis-bottom-nav-inner mx-auto flex max-w-md items-center justify-around rounded-[26px] px-1.5 py-2">
+          <button type="button" onClick={() => { setSelectedTab("home"); setIsChatDrawerOpen(false); setIsSettingsOpen(false); }} aria-label="Home" className={"flex min-w-[54px] flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-semibold transition-all " + (selectedTab === "home" ? "bg-[#6578F7]/10 text-[#5267EE]" : "text-slate-500")}>
             <House className="h-5 w-5" /><span>Home</span>
           </button>
-          <button type="button" onClick={() => { setSelectedTab('chats'); setIsChatDrawerOpen(true); setIsSettingsOpen(false); }} aria-label="Chats" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'chats' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+          <button type="button" onClick={() => { setSelectedTab("chats"); setIsChatDrawerOpen(true); setIsSettingsOpen(false); }} aria-label="Chats" className={"flex min-w-[54px] flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-semibold transition-all " + (selectedTab === "chats" ? "bg-[#6578F7]/10 text-[#5267EE]" : "text-slate-500")}>
             <MessageCircle className="h-5 w-5" /><span>Chats</span>
           </button>
-          <button type="button" onClick={() => { setSelectedTab('planner'); setIsSettingsOpen(false); setIsChatDrawerOpen(false); }} aria-label="Planner and AI controls" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'planner' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+          <button type="button" onClick={() => { setSelectedTab("planner"); setIsSettingsOpen(false); setIsChatDrawerOpen(false); }} aria-label="Planner and automation" className={"flex min-w-[54px] flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-semibold transition-all " + (selectedTab === "planner" ? "bg-[#6578F7]/10 text-[#5267EE]" : "text-slate-500")}>
             <CalendarDays className="h-5 w-5" /><span>Planner</span>
           </button>
-          <button type="button" onClick={() => { setSelectedTab('settings'); setIsSettingsOpen(true); setIsChatDrawerOpen(false); }} aria-label="Settings" className={`flex min-w-[64px] flex-col items-center gap-1 rounded-2xl px-3 py-2 text-[10px] font-semibold transition-all ${selectedTab === 'settings' ? 'bg-[#6578F7]/10 text-[#5267EE]' : 'text-slate-500 hover:text-slate-800'}`}>
+          <button type="button" onClick={() => { setSelectedTab("device"); setIsSettingsOpen(false); setIsChatDrawerOpen(false); }} aria-label="Device control" className={"flex min-w-[54px] flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-semibold transition-all " + (selectedTab === "device" ? "bg-[#6578F7]/10 text-[#5267EE]" : "text-slate-500")}>
+            <Smartphone className="h-5 w-5" /><span>Device</span>
+          </button>
+          <button type="button" onClick={() => { setSelectedTab("settings"); setIsSettingsOpen(true); setIsChatDrawerOpen(false); }} aria-label="Settings" className={"flex min-w-[54px] flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[10px] font-semibold transition-all " + (selectedTab === "settings" ? "bg-[#6578F7]/10 text-[#5267EE]" : "text-slate-500")}>
             <Settings className="h-5 w-5" /><span>Settings</span>
           </button>
         </div>
       </nav>
-
       {selectedTab === 'planner' && !isSettingsOpen && (
         <PlannerScreen
           tasks={plannerTasks}
@@ -1100,6 +1103,10 @@ export default function App() {
           onToggleRoutine={handleToggleRoutine}
           onUpdateRoutine={handleUpdateRoutine}
         />
+      )}
+
+      {selectedTab === "device" && !isSettingsOpen && (
+        <DeviceControlScreen permissions={permissions} actionLogs={actionLogs} onRefresh={refreshPermissions} onAction={(request) => { handleExecuteDeviceAction(request); }} />
       )}
 
       <SettingsModal
