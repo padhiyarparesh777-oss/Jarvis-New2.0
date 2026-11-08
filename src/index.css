@@ -260,3 +260,11 @@ html, body, #root {
 .jarvis-settings-panel button:active{transform:scale(.985)}
 .jarvis-settings-panel [role="tablist"]{background:rgba(255,255,255,.035)!important}
 @media(max-width:640px){.jarvis-settings-panel{width:100%!important;max-width:none!important}.jarvis-settings-panel>div:first-child{padding-top:max(1rem,env(safe-area-inset-top))!important}}
+
+.jarvis-neural-canvas{background:#050914!important}
+.jarvis-topbar h1{color:#eaf4ff!important;text-shadow:0 0 20px rgba(94,211,255,.18)}
+.jarvis-topbar h1 span{color:#8fe8ff!important}
+.jarvis-bottom-nav-inner button{flex:1;min-width:0!important}
+.jarvis-feature-screen{scrollbar-width:thin;scrollbar-color:rgba(140,205,235,.24) transparent}
+.jarvis-feature-screen::-webkit-scrollbar{width:4px}
+.jarvis-feature-screen::-webkit-scrollbar-thumb{background:rgba(140,205,235,.24);border-radius:20px}
