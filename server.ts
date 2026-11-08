@@ -564,7 +564,7 @@ async function startServer() {
   app.get("/api/ai/status", async (_req, res) => {
     const ai = getGeminiClient();
     res.json({
-      configured: true,
+      configured: Boolean(ai),
       provider: ai ? "Google Gemini API" : "Google Gemini API key not configured",
       models: ["gemini-3.1-flash-lite", "gemini-3.8-flash"],
       ttsModel: "gemini-3.8-flash-lite-tts",
@@ -823,8 +823,6 @@ async function startServer() {
       res.status(503).json({ error: "GEMINI_NOT_CONFIGURED", message });
     }
   });
-
-  // 3. Screen Understanding  });
 
   // 3. Screen Understanding & Vision Analysis (`/api/ai/screen-analyze`) with Free Fallback
   app.post("/api/ai/screen-analyze", async (req, res) => {
