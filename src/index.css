@@ -238,3 +238,25 @@ html, body, #root {
 .jarvis-bottom-nav-inner button[class*="text-[#5267EE]"],.jarvis-bottom-nav-inner button[class*="text-[#6578F7]"]{color:#b5f0ff!important;border:1px solid rgba(130,220,255,.24)!important;background:linear-gradient(145deg,rgba(105,211,255,.19),rgba(106,123,255,.10))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 0 24px rgba(77,193,245,.13)!important}
 .jarvis-bottom-nav-inner button svg{color:#8de5ff!important}
 @media(max-width:480px){.jarvis-composer-shell{min-height:64px}.jarvis-bottom-nav-inner{min-height:80px}}
+
+/* Feature screens and configuration use the same deep-glass design language */
+.jarvis-feature-screen{background:linear-gradient(160deg,rgba(5,11,22,.96),rgba(7,15,29,.94) 55%,rgba(10,13,30,.96))!important;color:#edf7ff!important;-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%)}
+.jarvis-feature-screen h1,.jarvis-feature-screen h2,.jarvis-feature-screen h3,.jarvis-feature-screen p,.jarvis-feature-screen label,.jarvis-feature-screen span{color:inherit}
+.jarvis-feature-screen [class*="text-slate-900"],.jarvis-feature-screen [class*="text-slate-800"],.jarvis-feature-screen [class*="text-slate-700"]{color:#e6f1fc!important}
+.jarvis-feature-screen [class*="text-slate-600"],.jarvis-feature-screen [class*="text-slate-500"],.jarvis-feature-screen [class*="text-slate-400"]{color:#9aacc2!important}
+.jarvis-feature-screen [class*="bg-white"],.jarvis-feature-screen [class*="bg-slate-50"],.jarvis-feature-screen [class*="bg-slate-100"]{background:rgba(255,255,255,.055)!important}
+.jarvis-feature-screen [class*="border-slate-"],.jarvis-feature-screen [class*="border-white/"]{border-color:rgba(190,226,255,.14)!important}
+.jarvis-feature-screen input,.jarvis-feature-screen select{background:rgba(2,8,18,.72)!important;border:1px solid rgba(190,226,255,.17)!important;color:#eff8ff!important}
+.jarvis-feature-screen button:focus-visible{outline:2px solid rgba(131,232,255,.72);outline-offset:2px}
+.jarvis-planner-screen{padding-top:1.1rem!important}
+.jarvis-settings-overlay{background:rgba(1,5,12,.72)!important;-webkit-backdrop-filter:blur(22px) saturate(130%)!important;backdrop-filter:blur(22px) saturate(130%)!important}
+.jarvis-settings-panel{background:linear-gradient(160deg,rgba(13,24,41,.98),rgba(5,11,22,.98))!important;border-left:1px solid rgba(190,226,255,.18)!important;color:#edf7ff!important;box-shadow:-24px 0 80px rgba(0,0,0,.48)!important}
+.jarvis-settings-panel [class*="bg-white"],.jarvis-settings-panel [class*="bg-slate-50"],.jarvis-settings-panel [class*="bg-slate-100"]{background:rgba(255,255,255,.055)!important}
+.jarvis-settings-panel [class*="text-slate-900"],.jarvis-settings-panel [class*="text-slate-800"],.jarvis-settings-panel [class*="text-slate-700"]{color:#eaf4ff!important}
+.jarvis-settings-panel [class*="text-slate-600"],.jarvis-settings-panel [class*="text-slate-500"],.jarvis-settings-panel [class*="text-slate-400"]{color:#9aacc2!important}
+.jarvis-settings-panel [class*="border-slate-"],.jarvis-settings-panel [class*="border-white/"]{border-color:rgba(190,226,255,.14)!important}
+.jarvis-settings-panel input,.jarvis-settings-panel select,.jarvis-settings-panel textarea{background:rgba(2,8,18,.72)!important;border:1px solid rgba(190,226,255,.17)!important;color:#eff8ff!important}
+.jarvis-settings-panel button{transition:background .2s ease,border-color .2s ease,transform .2s ease}
+.jarvis-settings-panel button:active{transform:scale(.985)}
+.jarvis-settings-panel [role="tablist"]{background:rgba(255,255,255,.035)!important}
+@media(max-width:640px){.jarvis-settings-panel{width:100%!important;max-width:none!important}.jarvis-settings-panel>div:first-child{padding-top:max(1rem,env(safe-area-inset-top))!important}}
