@@ -43,6 +43,7 @@ export interface NativeNotificationItem {
 interface JarvisDevicePlugin {
   openApp(options: { packageName: string; targetApp?: string }): Promise<{ success: boolean; message: string }>;
   openDialer(options: { phoneNumber?: string }): Promise<{ success: boolean; message: string }>;
+  placeCall(options: { phoneNumber: string }): Promise<{ success: boolean; message: string }>;
   sendSms(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
   sendWhatsApp(options: { phoneNumber?: string; message?: string }): Promise<{ success: boolean; message: string }>;
   setAlarm(options: { hour: number; minute: number; label?: string; skipUi?: boolean }): Promise<{ success: boolean; message: string }>;
@@ -487,7 +488,25 @@ export async function executeNativeDeviceAction(
     }
 
     if (actionType === 'DIAL_NUMBER') {
-      return await JarvisNativeDevice.openDialer({ phoneNumber: req.phoneNumberOrContact });
+      const target = (req.phoneNumberOrContact || '').trim();
+      if (!target) return { success: false, message: 'Call ke liye contact ya number nahi mila.' };
+      let number = target;
+      if (!/[0-9]{5,}/.test(target)) {
+        let permission = 'prompt';
+        try { permission = (await JarvisNativePermissions.requestContactsPermission()).contacts; } catch {}
+        if (permission !== 'granted') return { success: false, message: 'Contacts permission enable karo, phir JARVIS contact search kar sakega.' };
+        const found = await JarvisNativeDevice.searchContacts({ query: target });
+        const normalize = (v: string) => v.toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]/gu, '');
+        const wanted = normalize(target);
+        const matches = (found.contacts || []).filter(c => c.phoneNumber && normalize(c.displayName).includes(wanted));
+        const exact = matches.filter(c => normalize(c.displayName) === wanted);
+        const selected = exact.length === 1 ? exact[0] : exact.length === 0 && matches.length === 1 ? matches[0] : null;
+        if (!selected?.phoneNumber) return { success: false, message: matches.length > 1 ? 'Is naam ke multiple contacts mile. Contact ka poora naam batao.' : 'Contact nahi mila ya uska number saved nahi hai.' };
+        number = selected.phoneNumber;
+      }
+      const phonePermission = await JarvisNativePermissions.requestPhonePermission();
+      if (phonePermission.phone !== 'granted') return { success: false, message: 'Phone permission allow karo taaki JARVIS call place kar sake.' };
+      return await JarvisNativeDevice.placeCall({ phoneNumber: number });
     }
 
     if (actionType === 'SEND_SMS') {
@@ -575,6 +594,7 @@ export function isActionDirectExecution(
     case 'WEB_SEARCH_INTENT':
     case 'SET_ALARM':
     case 'SET_TIMER':
+    case 'DIAL_NUMBER':
       return true;
     default:
       return false;
@@ -590,7 +610,6 @@ export function isActionConfirmationRequired(
 ): boolean {
   // Explicit sensitive categories
   if (
-    actionType === 'DIAL_NUMBER' ||
     actionType === 'SEND_SMS' ||
     actionType === 'SEND_WHATSAPP' ||
     actionType === 'LOCK_DEVICE'
