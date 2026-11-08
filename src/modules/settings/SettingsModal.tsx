@@ -69,6 +69,8 @@ import {
 import { voiceEngine } from '../voice/VoiceEngine';
 import { aiService } from '../ai/aiService';
 import { FloatingOrbSettings } from './FloatingOrbSettings';
+import { DeveloperModePanel } from '../developer/DeveloperModePanel';
+import { getBackendBaseUrl } from '../ai/aiService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -1616,6 +1618,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'diagnostics' && (
             <div className="space-y-6">
+              <DeveloperModePanel backendUrl={getBackendBaseUrl(settings)} />
+
               {/* Interaction Latency Metrics */}
               <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
                 <div className="text-xs uppercase tracking-wider text-[#FFC928] font-semibold flex items-center gap-2">
