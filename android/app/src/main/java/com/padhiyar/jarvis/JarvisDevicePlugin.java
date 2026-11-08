@@ -568,6 +568,21 @@ public class JarvisDevicePlugin extends Plugin {
     @PluginMethod
     public void isAccessibilityServiceEnabled(PluginCall call) {
         boolean active = JarvisAccessibilityService.isRunning();
+        // Also inspect Android's enabled-service registry so status remains accurate
+        // during the short interval before onServiceConnected() is delivered.
+        if (!active) {
+            try {
+                String enabledServices = Settings.Secure.getString(
+                    getContext().getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                );
+                ComponentName serviceComponent = new ComponentName(getContext(), JarvisAccessibilityService.class);
+                String flattened = serviceComponent.flattenToString();
+                active = enabledServices != null &&
+                    (enabledServices.equalsIgnoreCase(flattened) ||
+                     enabledServices.toLowerCase().contains(flattened.toLowerCase()));
+            } catch (Exception ignored) {}
+        }
         JSObject ret = new JSObject();
         ret.put("enabled", active);
         if (active && JarvisAccessibilityService.getInstance() != null) {
