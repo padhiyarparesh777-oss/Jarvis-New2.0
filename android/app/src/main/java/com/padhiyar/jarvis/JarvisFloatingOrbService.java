@@ -7,6 +7,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -36,6 +38,8 @@ public class JarvisFloatingOrbService extends Service {
         bubble.setGravity(Gravity.CENTER); bubble.setElevation(16f);
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFB5EEFF,0xFF35B8F4,0xFF147BB8});
         bg.setShape(GradientDrawable.OVAL); bg.setStroke(2,0xEEFFFFFF); bubble.setBackground(bg);
+        ObjectAnimator pulse = ObjectAnimator.ofFloat(bubble, "alpha", 0.78f, 1.0f);
+        pulse.setDuration(1150); pulse.setRepeatMode(ValueAnimator.REVERSE); pulse.setRepeatCount(ValueAnimator.INFINITE); pulse.start();
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
         params = new WindowManager.LayoutParams(dp(62),dp(62),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START; params.x = dp(16); params.y = dp(180);
