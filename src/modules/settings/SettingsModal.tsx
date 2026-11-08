@@ -494,13 +494,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       }`}
                     />
                     <span>
-                      {settings.aiBrain.provider === 'free-unlimited'
-                        ? 'Free Unlimited AI Engine'
-                        : settings.aiBrain.provider === 'fcc'
-                        ? 'FCC Cloud AI Gateway'
-                        : settings.aiBrain.provider === 'auto-hybrid'
-                        ? 'Auto-Hybrid (Google Gemini + Free Backup)'
-                        : 'Google Gemini Strict API Mode'}
+                      {'Google Gemini API'}
                     </span>
                   </div>
                   <div className="text-xs text-white/55 mt-1">
@@ -517,51 +511,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
               </div>
 
-              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-3">
-                <label className="block text-xs text-[#C5A059]">Intelligence Provider Mode</label>
-                <div className="grid grid-cols-1 gap-2">
-                  {[
-                    {
-                      id: 'auto-hybrid',
-                      title: 'Auto-Hybrid (Google Gemini + Free Backup) — Recommended',
-                      desc: 'Streaming Gemini tokens with automatic fallback if rate limits occur.',
-                    },
-                    {
-                      id: 'gemini',
-                      title: 'Google Gemini Dedicated Mode',
-                      desc: 'Direct execution on gemini-3.8-flash and gemini-3.1-flash-lite.',
-                    },
-                    {
-                      id: 'fcc',
-                      title: 'FCC Cloud AI Gateway',
-                      desc: 'Route conversations through your separately hosted FCC gateway with provider/model fallback.',
-                    },
-                    {
-                      id: 'free-unlimited',
-                      title: 'Free Unlimited AI Mode (Zero Rate Limits)',
-                      desc: 'OpenAI-compatible serverless neural core for unthrottled conversation.',
-                    },
-                  ].map((mode) => (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      onClick={() => updateBrain({ provider: mode.id as JarvisSettings['aiBrain']['provider'] })}
-                      className={`p-3 rounded-xl border text-left transition-colors ${
-                        settings.aiBrain.provider === mode.id
-                          ? 'bg-[#FFC928]/15 border-[#FFC928] text-white'
-                          : 'bg-black border-white/10 text-white/70 hover:text-white'
-                      }`}
-                    >
-                      <div className="text-xs font-semibold text-[#FFC928]">{mode.title}</div>
-                      <div className="text-[11px] text-white/60 mt-0.5">{mode.desc}</div>
-                    </button>
-                  ))}
-                </div>
+              <div className="p-4 rounded-xl bg-[#0B0B0B] border border-[#FFC928]/30 space-y-2">
+                <div className="text-xs text-[#C5A059]">AI Provider</div>
+                <div className="text-sm font-semibold text-white">Google Gemini</div>
+                <p className="text-[11px] text-white/60">JARVIS connects directly to Google Gemini through its secure Render backend.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-[#0B0B0B] border border-white/10 space-y-2">
-                  <label className="block text-xs text-[#C5A059]">{settings.aiBrain.provider === 'fcc' ? 'FCC model is configured on the cloud service' : 'Primary Gemini Model'}</label>
+                  <label className="block text-xs text-[#C5A059]">Primary Gemini Model</label>
                   <select
                     value={settings.aiBrain.model}
                     onChange={(e) => updateBrain({ model: e.target.value as JarvisSettings['aiBrain']['model'] })}
