@@ -268,3 +268,9 @@ html, body, #root {
 .jarvis-feature-screen{scrollbar-width:thin;scrollbar-color:rgba(140,205,235,.24) transparent}
 .jarvis-feature-screen::-webkit-scrollbar{width:4px}
 .jarvis-feature-screen::-webkit-scrollbar-thumb{background:rgba(140,205,235,.24);border-radius:20px}
+
+/* Keep fixed chrome legible while feature screens scroll underneath */
+.jarvis-topbar{background:linear-gradient(180deg,rgba(4,10,22,.98) 0%,rgba(4,10,22,.88) 72%,rgba(4,10,22,0) 100%);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.jarvis-bottom-nav{background:linear-gradient(0deg,rgba(3,8,18,.9),rgba(3,8,18,0));}
+.jarvis-feature-screen{scroll-padding-top:150px;scroll-padding-bottom:150px}
+.jarvis-feature-screen button{-webkit-tap-highlight-color:transparent}
