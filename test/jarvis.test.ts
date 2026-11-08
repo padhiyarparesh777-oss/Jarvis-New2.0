@@ -238,3 +238,40 @@ describe('JARVIS AI Voice Pipeline & Action Policy Tests', () => {
     assert.equal(result.status, 'awaiting_confirmation');
   });
 });
+
+import {
+  clearDiagnosticEvents,
+  getDiagnosticEvents,
+  getRemoteDiagnosticsConfig,
+  recordDiagnostic,
+  setRemoteDiagnosticsConfig,
+} from '../src/modules/developer/diagnostics';
+
+describe('JARVIS Developer Diagnostics', () => {
+  beforeEach(() => {
+    clearDiagnosticEvents();
+    localStorage.removeItem('jarvis.developer.remoteDiagnostics.v1');
+  });
+
+  test('captures errors while redacting bearer tokens and API secrets', () => {
+    recordDiagnostic('error', 'test', 'api_key=super-secret Bearer abc.def');
+    const event = getDiagnosticEvents()[0];
+    assert.equal(event.level, 'error');
+    assert.equal(event.source, 'test');
+    assert.ok(!event.message.includes('super-secret'));
+    assert.ok(!event.message.includes('abc.def'));
+  });
+
+  test('bounds local diagnostic storage to 80 events', () => {
+    for (let index = 0; index < 100; index += 1) {
+      recordDiagnostic('info', 'test-cap', 'event ' + index);
+    }
+    assert.equal(getDiagnosticEvents().length, 80);
+  });
+
+  test('remote diagnostics are opt-in and config persists', () => {
+    assert.equal(getRemoteDiagnosticsConfig().enabled, false);
+    setRemoteDiagnosticsConfig({ enabled: true, token: 'owner-token' });
+    assert.deepEqual(getRemoteDiagnosticsConfig(), { enabled: true, token: 'owner-token' });
+  });
+});
