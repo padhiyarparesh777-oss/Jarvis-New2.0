@@ -87,7 +87,10 @@ interface JarvisDevicePlugin {
     listenerFunc: (data: { errorCode: number; error: string }) => void
   ): Promise<{ remove: () => Promise<void> }>;
 
-  // HeyTap Music / Android media session controls\n  controlMusic(options: { command: string; packageName?: string }): Promise<{ success: boolean; message: string; title?: string; artist?: string; album?: string; positionMs?: number; durationMs?: number; isPlaying?: boolean; listenerEnabled?: boolean }>;\n\n  // Accessibility & UI gestures
+  // HeyTap Music / Android media session controls
+  controlMusic(options: { command: string; packageName?: string }): Promise<{ success: boolean; message: string; title?: string; artist?: string; album?: string; positionMs?: number; durationMs?: number; isPlaying?: boolean; listenerEnabled?: boolean }>;
+
+  // Accessibility & UI gestures
   isAccessibilityServiceEnabled(): Promise<{ enabled: boolean; foregroundPackage?: string }>;
   openAccessibilitySettings(): Promise<{ success: boolean; message: string }>;
   readScreenText(): Promise<{ success: boolean; foregroundPackage: string; nodeCount: number; nodes: NativeUiNode[] }>;
@@ -491,7 +494,11 @@ export async function executeNativeDeviceAction(
   }
 
   try {
-    if (actionType === 'CONTROL_MUSIC') {\n      return await JarvisNativeDevice.controlMusic({ command: req.musicCommand || 'STATUS', packageName: 'com.heytap.music' });\n    }\n\n    if (actionType === 'OPEN_APP' || actionType === 'OPEN_SETTINGS') {
+    if (actionType === 'CONTROL_MUSIC') {
+      return await JarvisNativeDevice.controlMusic({ command: req.musicCommand || 'STATUS', packageName: 'com.heytap.music' });
+    }
+
+    if (actionType === 'OPEN_APP' || actionType === 'OPEN_SETTINGS') {
       const rawTarget = actionType === 'OPEN_SETTINGS' ? 'settings' : req.targetApp || 'settings';
       const resolved = resolveTargetPackage(rawTarget, settings || ({} as JarvisSettings));
       return await JarvisNativeDevice.openApp({ packageName: resolved.pkg, targetApp: resolved.name });
