@@ -4,12 +4,14 @@ import {
   Music2, RefreshCw, ShieldCheck, Smartphone, Volume2, Wifi, Zap
 } from 'lucide-react';
 import type { DeviceActionRequest, DeviceActionResult, PermissionStatusMap } from '../types/jarvis';
+import { JarvisNativeDevice, requestMicrophonePermission, requestNotificationPermission } from './device/deviceControl';
 
 interface DeviceControlScreenProps {
   permissions: PermissionStatusMap;
   actionLogs: DeviceActionResult[];
   onRefresh: () => void;
   onAction: (request: DeviceActionRequest) => void;
+  onPermissionAction?: (key: keyof PermissionStatusMap) => void;
 }
 
 const permissionRows: Array<{ key: keyof PermissionStatusMap; label: string; hint: string }> = [
@@ -28,7 +30,7 @@ function stateLabel(value: unknown): string {
 }
 
 export const DeviceControlScreen: React.FC<DeviceControlScreenProps> = ({
-  permissions, actionLogs, onRefresh, onAction,
+  permissions, actionLogs, onRefresh, onAction, onPermissionAction,
 }) => {
   const [appName, setAppName] = useState('');
   const permissionReady = permissionRows.filter((item) => {
@@ -40,11 +42,29 @@ export const DeviceControlScreen: React.FC<DeviceControlScreenProps> = ({
     onAction({ actionType, ...extra });
   };
 
+  const openPermission = async (key: keyof PermissionStatusMap) => {
+    try {
+      if (onPermissionAction) { onPermissionAction(key); return; }
+      if (key === 'notificationListener') await JarvisNativeDevice.openNotificationListenerSettings();
+      else if (key === 'accessibilityService') await JarvisNativeDevice.openAccessibilitySettings();
+      else if (key === 'backgroundService') await JarvisNativeDevice.startBackgroundService();
+      else if (key === 'microphone') await requestMicrophonePermission();
+      else if (key === 'notifications') await requestNotificationPermission();
+      onRefresh();
+    } catch { onRefresh(); }
+  };
+
+  const uniqueLogs = actionLogs.reduce<DeviceActionResult[]>((items, log) => {
+    const previous = items.find((item) => item.title === log.title && item.detail === log.detail && item.status === log.status);
+    if (!previous) items.push(log);
+    return items;
+  }, []).slice(0, 6);
+
   const glass = 'rounded-2xl border border-white/10 bg-white/[0.045] shadow-[inset_0_1px_0_rgba(255,255,255,.06),0_12px_30px_rgba(0,0,0,.18)] backdrop-blur-2xl';
   const actionButton = 'flex min-h-[74px] flex-col items-start justify-between rounded-2xl border border-white/10 bg-white/[.045] p-3 text-left transition active:scale-[.98] hover:bg-white/[.08]';
 
   return (
-    <section className="jarvis-feature-screen absolute inset-0 z-10 overflow-y-auto px-5 pb-36 pt-28 text-white">
+    <section className="jarvis-feature-screen absolute inset-0 z-10 overflow-y-auto px-5 pb-40 pt-32 text-white">
       <div className="mx-auto max-w-xl space-y-5">
         <div className="flex items-start justify-between gap-3">
           <div><p className="text-[10px] font-semibold tracking-[.22em] text-cyan-200/70">NATIVE DEVICE HUB</p><h2 className="mt-1 font-display text-2xl font-semibold">Device control</h2><p className="mt-1 text-xs text-slate-400">Your phone, connected to JARVIS.</p></div>
@@ -83,10 +103,10 @@ export const DeviceControlScreen: React.FC<DeviceControlScreenProps> = ({
             {permissionRows.map((item) => {
               const value = permissions[item.key];
               const ready = ['granted', 'authorized', 'enabled', 'running', 'active', 'ready', 'supported'].includes(String(value));
-              return <div key={item.key} className="flex items-center gap-3 rounded-xl px-2 py-3">
+              return <button type="button" key={item.key} onClick={() => openPermission(item.key)} className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition hover:bg-white/[.045] active:scale-[.99]">
                 <span className={'h-2 w-2 rounded-full ' + (ready ? 'bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,.7)]' : 'bg-amber-300')}/>
                 <div className="min-w-0 flex-1"><p className="text-xs font-medium">{item.label}</p><p className="mt-0.5 text-[10px] text-slate-500">{item.hint}</p></div>
-                <span className={'text-[10px] ' + (ready ? 'text-emerald-200' : 'text-amber-200')}>{stateLabel(value)}</span>
+                <span className={'text-[10px] ' + (ready ? 'text-emerald-200' : 'text-amber-200')}>{ready ? 'Ready' : (item.key === 'notificationListener' || item.key === 'accessibilityService' ? 'Enable' : item.key === 'backgroundService' ? 'Start' : 'Allow')}</span>
                 <ChevronRight className="h-3.5 w-3.5 text-slate-600"/>
               </div>;
             })}
@@ -95,8 +115,8 @@ export const DeviceControlScreen: React.FC<DeviceControlScreenProps> = ({
         </div>
 
         <div className={glass + ' p-4'}>
-          <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold">Recent device activity</h3><span className="text-[10px] text-slate-500">{actionLogs.length} records</span></div>
-          {actionLogs.length === 0 ? <p className="py-4 text-center text-xs text-slate-500">No device actions yet.</p> : <div className="space-y-2">{actionLogs.slice(0,6).map((log) => <div key={log.id} className="rounded-xl border border-white/[.07] bg-black/20 p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-medium">{log.title}</p><span className="text-[9px] uppercase tracking-wider text-cyan-200">{log.status.replaceAll('_',' ')}</span></div><p className="mt-1 text-[10px] leading-relaxed text-slate-400">{log.detail}</p></div>)}</div>}
+          <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-semibold">Recent device activity</h3><span className="text-[10px] text-slate-500">{actionLogs.length} records · {uniqueLogs.length} types</span></div>
+          {actionLogs.length === 0 ? <p className="py-4 text-center text-xs text-slate-500">No device actions yet.</p> : <div className="space-y-2">{uniqueLogs.map((log) => <div key={log.id} className="rounded-xl border border-white/[.07] bg-black/20 p-3"><div className="flex items-center justify-between gap-2"><p className="text-xs font-medium">{log.title}</p><span className="text-[9px] uppercase tracking-wider text-cyan-200">{log.status.replaceAll('_',' ')}</span></div><p className="mt-1 text-[10px] leading-relaxed text-slate-400">{log.detail}</p></div>)}</div>}
         </div>
       </div>
     </section>
