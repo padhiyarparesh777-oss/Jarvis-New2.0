@@ -266,7 +266,8 @@ export type DeviceActionType =
   | 'NAVIGATE_SCREEN'
   | 'WEB_SEARCH_INTENT'
   | 'LOCK_DEVICE'
-  | 'READ_NOTIFICATIONS'\n  | 'CONTROL_MUSIC';
+  | 'READ_NOTIFICATIONS'
+  | 'CONTROL_MUSIC';
 
 export interface DeviceActionRequest {
   actionType: DeviceActionType;
@@ -276,7 +277,8 @@ export interface DeviceActionRequest {
   timerSeconds?: number;
   label?: string;
   phoneNumberOrContact?: string;
-  navigationGesture?: 'BACK' | 'HOME' | 'SCROLL_DOWN' | 'SCROLL_UP' | 'TAP';\n  musicCommand?: 'STATUS' | 'PLAY' | 'PAUSE' | 'TOGGLE' | 'NEXT' | 'PREVIOUS' | 'STOP' | 'SEEK_FORWARD' | 'SEEK_BACKWARD' | 'VOLUME_UP' | 'VOLUME_DOWN';
+  navigationGesture?: 'BACK' | 'HOME' | 'SCROLL_DOWN' | 'SCROLL_UP' | 'TAP';
+  musicCommand?: 'STATUS' | 'PLAY' | 'PAUSE' | 'TOGGLE' | 'NEXT' | 'PREVIOUS' | 'STOP' | 'SEEK_FORWARD' | 'SEEK_BACKWARD' | 'VOLUME_UP' | 'VOLUME_DOWN';
   requiresConfirmation?: boolean;
 }
 
