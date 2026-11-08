@@ -3,6 +3,9 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import App from './App.tsx';
 import './index.css';
+import { installGlobalDiagnosticCapture } from './modules/developer/diagnostics';
+
+installGlobalDiagnosticCapture();
 
 // Must be called on every native launch, before network requests or heavy app startup.
 // Capgo uses this acknowledgement to keep a newly downloaded bundle or roll it back.
