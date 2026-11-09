@@ -1,0 +1,28 @@
+{
+  "name": "tittu-super-tools-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Secure MCP server exposing safe utilities and optional JARVIS status tools to ChatGPT",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "express": "^5.1.0",
+    "zod": "^3.25.76",
+    "expr-eval": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.15.30",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
