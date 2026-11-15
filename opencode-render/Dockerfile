@@ -14,4 +14,4 @@ WORKDIR /workspace
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "if [ -z \"$OPENCODE_PASSWORD\" ]; then echo 'OPENCODE_PASSWORD is required; configure it in Render environment variables.' >&2; exit 1; fi; exec opencode serve --hostname 0.0.0.0 --port ${PORT:-10000} /workspace"]
+CMD ["sh", "-c", "if [ -z \"$OPENCODE_SERVER_PASSWORD\" ]; then echo 'OPENCODE_SERVER_PASSWORD is required; configure it in Render environment variables.' >&2; exit 1; fi; exec opencode serve --hostname 0.0.0.0 --port ${PORT:-10000}"]
